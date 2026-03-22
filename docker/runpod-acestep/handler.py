@@ -314,12 +314,16 @@ def handler(event: dict) -> dict:
                 response["audio_base64"] = base64.b64encode(f.read()).decode("utf-8")
 
         # Cleanup temp files
-        for key in ("reference_audio_path", "src_audio_path"):
-            if key in gen_params:
-                try:
-                    os.unlink(gen_params[key])
-                except OSError:
-                    pass
+        if params.reference_audio and os.path.exists(params.reference_audio):
+            try:
+                os.unlink(params.reference_audio)
+            except OSError:
+                pass
+        if params.src_audio and os.path.exists(params.src_audio):
+            try:
+                os.unlink(params.src_audio)
+            except OSError:
+                pass
         try:
             os.unlink(output_path)
         except OSError:
