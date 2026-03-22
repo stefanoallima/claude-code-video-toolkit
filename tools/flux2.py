@@ -51,6 +51,24 @@ except ImportError as e:
 
 load_dotenv()
 
+def _get_r2_config() -> Optional[dict]:
+    """Get R2 config for result upload. Returns None if not configured."""
+    sys.path.insert(0, str(Path(__file__).parent))
+    try:
+        from config import get_r2_config
+        return get_r2_config()
+    except ImportError:
+        return None
+
+
+def _download_r2_result(url: str, output_path: str):
+    """Download result image from R2 presigned URL."""
+    response = requests.get(url, timeout=60)
+    response.raise_for_status()
+    with open(output_path, "wb") as f:
+        f.write(response.content)
+
+
 RUNPOD_GRAPHQL_URL = "https://api.runpod.io/graphql"
 DOCKER_IMAGE = "ghcr.io/conalmullan/video-toolkit-flux2:latest"
 TEMPLATE_NAME = "video-toolkit-flux2"
@@ -358,6 +376,8 @@ def call_endpoint(payload: dict, timeout: int = 600) -> tuple[dict, float]:
         status_url = f"https://api.runpod.ai/v2/{endpoint_id}/status/{job_id}"
 
         poll_interval = 5
+        queue_timeout = 300  # Cancel job if stuck in queue for 5 min
+        queue_start = time.time()
         last_status = None
         while time.time() - start < timeout:
             time.sleep(poll_interval)
@@ -370,6 +390,7 @@ def call_endpoint(payload: dict, timeout: int = 600) -> tuple[dict, float]:
             if status != last_status:
                 if status == "IN_PROGRESS":
                     log(f"[{elapsed:.0f}s] Generating...", "dim")
+                    queue_start = None  # No longer queued
                 elif status == "IN_QUEUE":
                     log(f"[{elapsed:.0f}s] Waiting for GPU...", "dim")
                 last_status = status
@@ -384,7 +405,24 @@ def call_endpoint(payload: dict, timeout: int = 600) -> tuple[dict, float]:
             if status in ("CANCELLED", "TIMED_OUT"):
                 return {"error": f"Job {status}"}, time.time() - start
 
-        return {"error": "polling timeout"}, time.time() - start
+            # Cancel jobs stuck in queue too long (prevents runaway billing)
+            if status == "IN_QUEUE" and queue_start and (time.time() - queue_start > queue_timeout):
+                log(f"Job stuck in queue for {queue_timeout}s — cancelling to prevent runaway charges", "warn")
+                cancel_url = f"https://api.runpod.ai/v2/{endpoint_id}/cancel/{job_id}"
+                try:
+                    requests.post(cancel_url, headers=headers, timeout=10)
+                except Exception:
+                    pass
+                return {"error": f"Cancelled: no GPU available after {queue_timeout}s in queue"}, time.time() - start
+
+        # Timeout — cancel the job so it doesn't linger in RunPod's queue
+        log("Polling timeout — cancelling job on RunPod", "warn")
+        cancel_url = f"https://api.runpod.ai/v2/{endpoint_id}/cancel/{job_id}"
+        try:
+            requests.post(cancel_url, headers=headers, timeout=10)
+        except Exception:
+            pass
+        return {"error": "polling timeout (job cancelled)"}, time.time() - start
 
     except requests.exceptions.Timeout:
         return {"error": "timeout"}, time.time() - start
@@ -433,13 +471,26 @@ def generate_image(
     if guidance is not None:
         payload["input"]["guidance_scale"] = guidance
 
+    r2_config = _get_r2_config()
+    if r2_config:
+        payload["input"]["r2"] = {
+            "endpoint_url": r2_config["endpoint_url"],
+            "access_key_id": r2_config["access_key_id"],
+            "secret_access_key": r2_config["secret_access_key"],
+            "bucket_name": r2_config["bucket_name"],
+        }
+
     result, elapsed = call_endpoint(payload)
 
     if "error" in result:
         log(f"Generation failed: {result['error']}", "error")
         return None
 
-    decode_and_save(result["image_base64"], output_path)
+    if "output_url" in result:
+        log("Downloading from R2...", "dim")
+        _download_r2_result(result["output_url"], output_path)
+    else:
+        decode_and_save(result["image_base64"], output_path)
 
     inference_ms = result.get("inference_time_ms", 0)
     output_size = result.get("image_size", [0, 0])
@@ -511,13 +562,26 @@ def edit_image(
     if guidance is not None:
         payload["input"]["guidance_scale"] = guidance
 
+    r2_config = _get_r2_config()
+    if r2_config:
+        payload["input"]["r2"] = {
+            "endpoint_url": r2_config["endpoint_url"],
+            "access_key_id": r2_config["access_key_id"],
+            "secret_access_key": r2_config["secret_access_key"],
+            "bucket_name": r2_config["bucket_name"],
+        }
+
     result, elapsed = call_endpoint(payload)
 
     if "error" in result:
         log(f"Edit failed: {result['error']}", "error")
         return None
 
-    decode_and_save(result["image_base64"], output_path)
+    if "output_url" in result:
+        log("Downloading from R2...", "dim")
+        _download_r2_result(result["output_url"], output_path)
+    else:
+        decode_and_save(result["image_base64"], output_path)
 
     inference_ms = result.get("inference_time_ms", 0)
     output_size = result.get("image_size", [0, 0])
@@ -673,7 +737,7 @@ def find_endpoint(api_key: str, template_id: str) -> dict | None:
 def create_endpoint(
     api_key: str,
     template_id: str,
-    gpu_id: str = "ADA_24",
+    gpu_id: str = "AMPERE_24,ADA_24",
     verbose: bool = True,
 ) -> dict:
     """Create a serverless endpoint for Flux2."""
@@ -759,7 +823,7 @@ def save_endpoint_to_env(endpoint_id: str, verbose: bool = True) -> bool:
     return True
 
 
-def setup_runpod(gpu_id: str = "ADA_24", verbose: bool = True) -> dict:
+def setup_runpod(gpu_id: str = "AMPERE_24,ADA_24", verbose: bool = True) -> dict:
     """Set up RunPod endpoint for Flux2."""
     result = {
         "success": False,
@@ -894,9 +958,8 @@ Examples:
     # Setup
     setup_group = parser.add_argument_group("Setup")
     setup_group.add_argument("--setup", action="store_true", help="Set up RunPod endpoint")
-    setup_group.add_argument("--setup-gpu", type=str, default="ADA_24",
-                             choices=["AMPERE_24", "ADA_24", "AMPERE_48"],
-                             help="GPU type for endpoint (default: ADA_24)")
+    setup_group.add_argument("--setup-gpu", type=str, default="AMPERE_24,ADA_24",
+                             help="GPU type(s) for endpoint, comma-separated for fallback (default: AMPERE_24,ADA_24)")
 
     # Output format
     parser.add_argument("--json", action="store_true", help="Output result as JSON")

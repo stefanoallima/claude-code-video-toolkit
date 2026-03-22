@@ -6,6 +6,21 @@ All notable changes to claude-code-video-toolkit.
 
 ---
 
+## 2026-03-22 (v0.11.1)
+
+### Fixed
+- **Queue timeout safeguard** — All 6 RunPod tools now auto-cancel jobs stuck in queue for >5 min, preventing runaway billing from GPU unavailability
+- **Cancel on exit** — Jobs are cancelled on RunPod when client polling times out (previously left orphaned jobs in queue indefinitely)
+- **R2 upload support** — flux2.py and image_edit.py now pass R2 config to handlers (was already supported server-side but never triggered)
+
+### Changed
+- **flux2 default GPU** — Changed from ADA_24 (RTX 4090, frequently throttled) to AMPERE_24,ADA_24 (fallback chain)
+- **flux2 setup** — `--setup-gpu` now accepts comma-separated GPU types for fallback
+- **RunPod skill** — Added API reference (GraphQL queries/mutations, REST endpoints, GPU IDs, R2 CLI patterns)
+- **R2 docs** — Added operations guide (listing, cleanup, `--region auto` gotcha) to runpod-setup.md
+
+---
+
 ## 2026-03-15 (v0.11.0)
 
 ### Added

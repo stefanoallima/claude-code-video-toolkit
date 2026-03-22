@@ -1259,14 +1259,17 @@ def poll_runpod_job(
 ) -> dict | None:
     """Poll RunPod job until completion or timeout."""
     url = f"https://api.runpod.ai/v2/{endpoint_id}/status/{job_id}"
+    headers = {"Authorization": f"Bearer {api_key}"}
     start_time = time.time()
     last_status = None
+    queue_timeout = 300  # Cancel job if stuck in queue for 5 min
+    queue_start = time.time()
 
     while time.time() - start_time < timeout:
         try:
             response = requests.get(
                 url,
-                headers={"Authorization": f"Bearer {api_key}"},
+                headers=headers,
                 timeout=30,
             )
 
@@ -1289,17 +1292,34 @@ def poll_runpod_job(
             elif status == "FAILED":
                 print(f"Job failed: {data.get('error', 'Unknown error')}", file=sys.stderr)
                 return data
-            elif status in ["IN_QUEUE", "IN_PROGRESS"]:
-                time.sleep(poll_interval)
-            else:
-                # Unknown status
-                time.sleep(poll_interval)
+
+            # Track queue-to-progress transition
+            if status == "IN_PROGRESS" and queue_start is not None:
+                queue_start = None
+
+            # Cancel jobs stuck in queue too long (prevents runaway billing)
+            if status == "IN_QUEUE" and queue_start is not None and (time.time() - queue_start > queue_timeout):
+                print(f"Job stuck in queue for {queue_timeout}s — cancelling to prevent runaway charges", file=sys.stderr)
+                cancel_url = f"https://api.runpod.ai/v2/{endpoint_id}/cancel/{job_id}"
+                try:
+                    requests.post(cancel_url, headers=headers, timeout=10)
+                except Exception:
+                    pass
+                return {"status": "FAILED", "error": f"Cancelled: no GPU available after {queue_timeout}s in queue"}
+
+            time.sleep(poll_interval)
 
         except Exception as e:
             print(f"Status check error: {e}", file=sys.stderr)
             time.sleep(poll_interval)
 
-    print(f"Job timed out after {timeout}s", file=sys.stderr)
+    # Overall timeout — cancel the job so it doesn't linger in RunPod's queue
+    print(f"Job timed out after {timeout}s — cancelling on RunPod", file=sys.stderr)
+    cancel_url = f"https://api.runpod.ai/v2/{endpoint_id}/cancel/{job_id}"
+    try:
+        requests.post(cancel_url, headers=headers, timeout=10)
+    except Exception:
+        pass
     return None
 
 

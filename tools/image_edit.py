@@ -57,6 +57,24 @@ load_dotenv()
 RUNPOD_API_KEY = os.getenv("RUNPOD_API_KEY")
 QWEN_EDIT_ENDPOINT = os.getenv("RUNPOD_QWEN_EDIT_ENDPOINT_ID")
 
+
+def _get_r2_config() -> Optional[dict]:
+    """Get R2 config for result upload. Returns None if not configured."""
+    sys.path.insert(0, str(Path(__file__).parent))
+    try:
+        from config import get_r2_config
+        return get_r2_config()
+    except ImportError:
+        return None
+
+
+def _download_r2_result(url: str, output_path: str):
+    """Download result image from R2 presigned URL."""
+    response = requests.get(url, timeout=60)
+    response.raise_for_status()
+    with open(output_path, "wb") as f:
+        f.write(response.content)
+
 # Background presets
 BACKGROUND_PRESETS = {
     "office": "modern professional office with glass windows and city view",
@@ -201,6 +219,8 @@ def call_endpoint(payload: dict, timeout: int = 600) -> tuple[dict, float]:
         status_url = f"https://api.runpod.ai/v2/{QWEN_EDIT_ENDPOINT}/status/{job_id}"
 
         poll_interval = 5
+        queue_timeout = 300  # Cancel job if stuck in queue for 5 min
+        queue_start = time.time()
         last_status = None
         while time.time() - start < timeout:
             time.sleep(poll_interval)
@@ -213,6 +233,7 @@ def call_endpoint(payload: dict, timeout: int = 600) -> tuple[dict, float]:
             if status != last_status:
                 if status == "IN_PROGRESS":
                     log(f"[{elapsed:.0f}s] Generating...", "dim")
+                    queue_start = None  # No longer queued
                 elif status == "IN_QUEUE":
                     log(f"[{elapsed:.0f}s] Waiting for GPU...", "dim")
                 last_status = status
@@ -227,7 +248,24 @@ def call_endpoint(payload: dict, timeout: int = 600) -> tuple[dict, float]:
             if status in ("CANCELLED", "TIMED_OUT"):
                 return {"error": f"Job {status}"}, time.time() - start
 
-        return {"error": "polling timeout"}, time.time() - start
+            # Cancel jobs stuck in queue too long (prevents runaway billing)
+            if status == "IN_QUEUE" and queue_start and (time.time() - queue_start > queue_timeout):
+                log(f"Job stuck in queue for {queue_timeout}s — cancelling to prevent runaway charges", "warn")
+                cancel_url = f"https://api.runpod.ai/v2/{QWEN_EDIT_ENDPOINT}/cancel/{job_id}"
+                try:
+                    requests.post(cancel_url, headers=headers, timeout=10)
+                except Exception:
+                    pass
+                return {"error": f"Cancelled: no GPU available after {queue_timeout}s in queue"}, time.time() - start
+
+        # Timeout — cancel the job so it doesn't linger in RunPod's queue
+        log("Polling timeout — cancelling job on RunPod", "warn")
+        cancel_url = f"https://api.runpod.ai/v2/{QWEN_EDIT_ENDPOINT}/cancel/{job_id}"
+        try:
+            requests.post(cancel_url, headers=headers, timeout=10)
+        except Exception:
+            pass
+        return {"error": "polling timeout (job cancelled)"}, time.time() - start
 
     except requests.exceptions.Timeout:
         return {"error": "timeout"}, time.time() - start
@@ -291,6 +329,15 @@ def edit_image(
         payload["input"]["negative_prompt"] = negative_prompt
         log(f"Negative: {negative_prompt}", "dim")
 
+    r2_config = _get_r2_config()
+    if r2_config:
+        payload["input"]["r2"] = {
+            "endpoint_url": r2_config["endpoint_url"],
+            "access_key_id": r2_config["access_key_id"],
+            "secret_access_key": r2_config["secret_access_key"],
+            "bucket_name": r2_config["bucket_name"],
+        }
+
     # Call endpoint
     result, elapsed = call_endpoint(payload)
 
@@ -304,7 +351,11 @@ def edit_image(
         output_path = f"{input_stem}_edited.png"
 
     # Save result
-    decode_and_save(result["edited_image_base64"], output_path)
+    if "output_url" in result:
+        log("Downloading from R2...", "dim")
+        _download_r2_result(result["output_url"], output_path)
+    else:
+        decode_and_save(result["edited_image_base64"], output_path)
 
     # Report results
     inference_ms = result.get("inference_time_ms", 0)

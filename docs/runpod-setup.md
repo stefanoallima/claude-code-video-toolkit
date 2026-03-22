@@ -256,7 +256,51 @@ By default, videos are uploaded via free file hosting services (litterbox.catbox
    pip install boto3
    ```
 
-That's it! The dewatermark tool will automatically use R2 for file transfer.
+That's it! All RunPod tools will automatically use R2 for file transfer when configured.
+
+### R2 Operations
+
+R2 uses the S3-compatible API via AWS CLI. All commands require `--region auto` (R2 does not use AWS regions).
+
+```bash
+# List all objects in bucket
+AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" \
+AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
+aws s3api list-objects-v2 \
+  --bucket "$R2_BUCKET_NAME" \
+  --endpoint-url "https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com" \
+  --region auto
+
+# List objects under a specific prefix (e.g. flux2 results)
+aws s3 ls "s3://$R2_BUCKET_NAME/flux2/" \
+  --endpoint-url "https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com" \
+  --region auto
+
+# Delete a specific object
+aws s3 rm "s3://$R2_BUCKET_NAME/sadtalker/results/old-file.mp4" \
+  --endpoint-url "https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com" \
+  --region auto
+
+# Delete all objects under a prefix
+aws s3 rm "s3://$R2_BUCKET_NAME/flux2/results/" --recursive \
+  --endpoint-url "https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com" \
+  --region auto
+```
+
+> **Common mistake:** Omitting `--region auto` causes an `InvalidRegionName` error. R2 valid regions are: `wnam`, `enam`, `weur`, `eeur`, `apac`, `oc`, `auto`.
+
+### R2 Cleanup
+
+Result files accumulate over time. Tools do not auto-delete after download. To check usage:
+
+```bash
+# Quick size check per folder
+aws s3 ls "s3://$R2_BUCKET_NAME/" --recursive --summarize \
+  --endpoint-url "https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com" \
+  --region auto
+```
+
+Objects are organized by tool: `sadtalker/results/`, `qwen3-tts/results/`, `flux2/results/`, `upscale/results/`, etc. Safe to delete old results anytime — they're copies of files already downloaded locally.
 
 ### Without R2
 
