@@ -9,6 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with th
 **Key capabilities:**
 - Programmatic video creation with Remotion (React-based)
 - AI voiceover generation with ElevenLabs or Qwen3-TTS
+- AI music generation with ACE-Step 1.5 (text-to-music, vocals, covers, stems)
 - Browser demo recording with Playwright
 - Asset processing with FFmpeg
 
@@ -107,9 +108,9 @@ pip install -r tools/requirements.txt
 
 | Type | Tools | When to Use |
 |------|-------|-------------|
-| **Project tools** | voiceover, music, sfx, sync_timing | During video creation workflow |
+| **Project tools** | voiceover, music, music_gen, sfx, sync_timing | During video creation workflow |
 | **Utility tools** | redub, addmusic, notebooklm_brand, locate_watermark | Quick transformations on existing videos |
-| **Cloud GPU** | image_edit, upscale, dewatermark, sadtalker, qwen3_tts | AI processing via RunPod |
+| **Cloud GPU** | image_edit, upscale, dewatermark, sadtalker, qwen3_tts, music_gen | AI processing via RunPod |
 
 Utility tools work on any video file without requiring a project structure.
 
@@ -159,6 +160,7 @@ echo "RUNPOD_API_KEY=your_key_here" >> .env
 python tools/image_edit.py --setup
 python tools/upscale.py --setup
 python tools/qwen3_tts.py --setup
+python tools/music_gen.py --setup
 
 # Image editing (Qwen-Image-Edit)
 python tools/image_edit.py --input photo.jpg --prompt "Add sunglasses"
@@ -172,6 +174,32 @@ python tools/upscale.py --input photo.jpg --scale 2 --model anime --face-enhance
 ```
 
 See `docs/qwen-edit-patterns.md` and `.claude/skills/qwen-edit/` for prompting guidance.
+
+### AI Music Generation (ACE-Step 1.5)
+
+```bash
+# Background music with precise control
+python tools/music_gen.py --prompt "Upbeat tech corporate" --duration 60 --bpm 128 --key "G Major" --output music.mp3
+
+# Scene presets for video production
+python tools/music_gen.py --preset corporate-bg --duration 60 --output bg.mp3
+python tools/music_gen.py --preset tension --duration 20 --output problem.mp3
+python tools/music_gen.py --preset cta --brand digital-samba --output cta.mp3
+
+# Vocals with lyrics
+python tools/music_gen.py --prompt "Indie pop jingle" --lyrics "[verse]\nBuild it better" --duration 30 --output jingle.mp3
+
+# Cover / style transfer
+python tools/music_gen.py --cover --reference theme.mp3 --prompt "Jazz piano version" --output cover.mp3
+
+# Stem extraction
+python tools/music_gen.py --extract vocals --input mixed.mp3 --output vocals.mp3
+
+# List presets
+python tools/music_gen.py --list-presets
+```
+
+8 scene presets: `corporate-bg`, `upbeat-tech`, `ambient`, `dramatic`, `tension`, `hopeful`, `cta`, `lofi`. See `.claude/skills/acestep/` for prompt engineering patterns and video production integration guide.
 
 ### Watermark Removal
 

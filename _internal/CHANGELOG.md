@@ -6,6 +6,24 @@ All notable changes to claude-code-video-toolkit.
 
 ---
 
+## 2026-03-22 (v0.12.0)
+
+### Added
+- **`tools/music_gen.py`** — AI music generation using ACE-Step 1.5
+  - Text-to-music with precise BPM, key, time signature, and duration control
+  - Vocal music with lyrics in 50+ languages
+  - Cover / style transfer from reference audio (`--cover`)
+  - Stem extraction — isolate vocals, drums, bass, etc. (`--extract`)
+  - **8 scene presets** for video production: `corporate-bg`, `upbeat-tech`, `ambient`, `dramatic`, `tension`, `hopeful`, `cta`, `lofi`
+  - **Brand-aware generation** — `--brand` loads style hints from brand.json
+  - `--setup` creates RunPod template + endpoint via GraphQL
+  - Docker image: `ghcr.io/conalmullan/video-toolkit-acestep:latest` (CUDA 12.8, baked model weights)
+  - MIT licensed model — free alternative to ElevenLabs Music with more control
+  - ~2-3s inference on GPU (turbo mode, 8 steps)
+- **ACE-Step skill** (`.claude/skills/acestep/`) — prompt engineering patterns, lyrics formatting, scene preset guide, video production integration
+
+---
+
 ## 2026-03-22 (v0.11.1)
 
 ### Fixed

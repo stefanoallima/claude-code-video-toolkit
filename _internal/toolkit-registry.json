@@ -1,6 +1,6 @@
 {
   "name": "claude-code-video-toolkit",
-  "version": "0.11.1",
+  "version": "0.12.0",
   "description": "AI-native video production workspace for Claude Code",
   "repository": "https://github.com/digitalsamba/claude-code-video-toolkit",
 
@@ -443,7 +443,7 @@
         }
       },
       "created": "2025-12-30",
-      "updated": "2026-03-14"
+      "updated": "2026-03-22"
     }
   },
 

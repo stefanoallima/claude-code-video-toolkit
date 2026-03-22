@@ -23,6 +23,7 @@ An AI-native video production workspace for [Claude Code](https://claude.ai/code
 > - `ghcr.io/conalmullan/video-toolkit-sadtalker` — Talking head generation (SadTalker)
 > - `ghcr.io/conalmullan/video-toolkit-qwen3-tts` — Text-to-speech (Qwen3-TTS)
 > - `ghcr.io/conalmullan/video-toolkit-flux2` — Text-to-image & editing (FLUX.2 Klein 4B)
+> - `ghcr.io/conalmullan/video-toolkit-acestep` — AI music generation (ACE-Step 1.5)
 >
 > My motto: **Be brave. Experiment.** And please share any videos you create or ideas you have back with the project — it helps me keep improving this toolkit for everyone.
 
@@ -48,7 +49,7 @@ Clone this repo, open it in Claude Code, and start creating videos.
 | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | **Required** | AI assistant for video creation |
 | [Python](https://python.org/) 3.9+ | Optional | AI voiceover, audio tools |
 | [FFmpeg](https://ffmpeg.org/) | Optional | Media conversion |
-| [RunPod account](https://runpod.io/) | Optional | Cloud GPU (TTS, image editing) |
+| [RunPod account](https://runpod.io/) | Optional | Cloud GPU (TTS, image editing, music gen) |
 | [ElevenLabs API key](https://elevenlabs.io/) | Optional | Premium AI voices |
 
 ### Try It Now
@@ -112,6 +113,7 @@ Claude Code has deep knowledge in:
 | **playwright-recording** | Browser automation — record demos as video |
 | **frontend-design** | Visual design refinement for distinctive, production-grade aesthetics |
 | **qwen-edit** | AI image editing — prompting patterns and best practices |
+| **acestep** | AI music generation — prompts, lyrics, scene presets, video integration |
 | **runpod** | Cloud GPU — setup, Docker images, endpoint management, costs |
 
 ### Commands
@@ -220,8 +222,12 @@ python tools/voiceover.py --script script.md --output voiceover.mp3
 python tools/voiceover.py --provider qwen3 --speaker Ryan --scene-dir public/audio/scenes --json
 python tools/qwen3_tts.py --text "Hello world" --tone warm --output hello.mp3
 
-# Generate background music
+# Generate background music (ElevenLabs)
 python tools/music.py --prompt "Upbeat corporate" --duration 120 --output music.mp3
+
+# Generate background music (ACE-Step — free, precise BPM/key control)
+python tools/music_gen.py --preset corporate-bg --duration 120 --output music.mp3
+python tools/music_gen.py --prompt "Dramatic cinematic" --duration 30 --bpm 90 --key "D Minor" --output reveal.mp3
 
 # Generate sound effects
 python tools/sfx.py --preset whoosh --output sfx.mp3
@@ -264,9 +270,9 @@ python tools/flux2.py --list-presets
 
 | Type | Tools | Purpose |
 |------|-------|---------|
-| **Project** | voiceover, music, sfx | Used during video creation workflow |
+| **Project** | voiceover, music, music_gen, sfx | Used during video creation workflow |
 | **Utility** | redub, addmusic, notebooklm_brand, locate_watermark | Quick transformations, no project needed |
-| **Cloud GPU** | image_edit, upscale, dewatermark, sadtalker, qwen3_tts, flux2 | AI processing via RunPod (see below) |
+| **Cloud GPU** | image_edit, upscale, dewatermark, sadtalker, qwen3_tts, flux2, music_gen | AI processing via RunPod (see below) |
 
 See [docs/runpod-setup.md](docs/runpod-setup.md) for Cloud GPU tool setup.
 
@@ -282,6 +288,7 @@ Cloud GPU tools use pre-built Docker images deployed to RunPod serverless:
 | sadtalker | `ghcr.io/conalmullan/video-toolkit-sadtalker:latest` | 24GB (RTX 4090) |
 | qwen3_tts | `ghcr.io/conalmullan/video-toolkit-qwen3-tts:latest` | 24GB (ADA) |
 | flux2 | `ghcr.io/conalmullan/video-toolkit-flux2:latest` | 24GB (ADA) |
+| music_gen | `ghcr.io/conalmullan/video-toolkit-acestep:latest` | 24GB+ (AMPERE/ADA) |
 
 Dockerfiles and handlers are in `docker/`. Run `python tools/<tool>.py --setup` to auto-deploy.
 
