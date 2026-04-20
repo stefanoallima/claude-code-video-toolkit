@@ -4,7 +4,7 @@ description: "Create specs, design, and tasks for a change. Use when the user wa
 license: MIT
 metadata:
   author: sudd
-  version: "3.8.10"
+  version: "3.8.25"
 ---
 
 Create detailed specifications, design, and implementation tasks for a change.
@@ -120,6 +120,22 @@ Write `sudd/changes/active/{id}/specs.md`:
 - Format: 
 - Schema: 
 - Validation: 
+
+## Handoff Contracts (v3.8.18 — AC #15)
+
+Declare the interface contract between agents so `contract-verifier` can
+enforce each transition. Every active change MUST fill in all four rows.
+
+| From                    | To                    | Contract                                                                                       |
+|-------------------------|-----------------------|-------------------------------------------------------------------------------------------------|
+| coder                   | qa                    | Produced files listed under each task's `Files:` exist, compile, and expose the signatures specs declare. |
+| qa                      | persona-validator     | Tests exist for every Given/When/Then in `tasks/{id}/micro-persona.md`; all referenced fixtures present. |
+| persona-validator       | gate                  | Persona score ≥ 98/100 for every persona in `active/{id}/personas/`; no deal-breakers triggered.         |
+| gate                    | (done/stuck)          | Gate rubric score meets threshold (default 98) AND macro-wiring-checker reports no dangling artifacts.  |
+
+`contract-verifier` runs at each phase transition and HALTs the build loop
+if any row's contract is violated. `macro-wiring-checker` runs at gate
+entry (gate.md Step 0) for change-level reachability.
 
 ## Out of Scope
 - 
@@ -242,6 +258,75 @@ for each task T{N} in tasks.md:
 ```
 
 Verify: every task has a micro-persona.md. If any are missing, log warning.
+
+---
+
+## STEP 5.6: RUBRIC ADVERSARY CYCLE (v3.8.18 — AC #12, #13, #14)
+
+A rubric that isn't critiqued before it scores live code tends to pass
+anything and fail nothing. This is what made SUDD v3.1 rubrics rigorous:
+adversarial pressure before the rubric ever runs.
+
+**Max 3 rounds. Exit when the adversary finds nothing meaningful.**
+
+For each task T{N} with a generated micro-persona.md, loop:
+
+```
+Round 1 (rubric v1):
+  Save initial rubric from STEP 5.5 output:
+    cp sudd/changes/active/{id}/tasks/T{N}/micro-persona.md \
+       sudd/changes/active/{id}/rubric-drafts/T{N}_v1.md
+
+  Task(agent=rubric-adversary):
+    Input:  rubric-drafts/T{N}_v1.md
+    Output: rubric-drafts/T{N}_critique_v1.md
+    Looks for: ambiguous criteria, missing edge cases, measurable-ness
+               failures, Given/When/Then that a test can't actually execute.
+
+  If critique is "nothing meaningful" (empty findings or only nits):
+    → Exit loop. Rubric v1 is final. Skip revision.
+  Else:
+    → Proceed to revision.
+
+Round 2 (rubric v2 after critique):
+  Task(agent=code-analyzer-reviewer, mode=rubric-revision):
+    Input:  rubric-drafts/T{N}_v1.md + rubric-drafts/T{N}_critique_v1.md
+    Output: rubric-drafts/T{N}_v2.md (incorporates critique findings)
+
+  Task(agent=rubric-adversary):
+    Input:  rubric-drafts/T{N}_v2.md
+    Output: rubric-drafts/T{N}_critique_v2.md
+
+  If "nothing meaningful":
+    → Exit loop. Write v2 back to tasks/T{N}/micro-persona.md. Final.
+  Else:
+    → Proceed to round 3.
+
+Round 3 (rubric v3 — last pass):
+  Task(agent=code-analyzer-reviewer, mode=rubric-revision):
+    Input:  rubric-drafts/T{N}_v2.md + rubric-drafts/T{N}_critique_v2.md
+    Output: rubric-drafts/T{N}_v3.md
+
+  Round 3 ends the cycle regardless. Write v3 back to
+  tasks/T{N}/micro-persona.md. Log any remaining adversary findings
+  to log.md under "## Rubric Adversary — Unresolved" as known weaknesses.
+```
+
+**Output directory** (AC #14): `sudd/changes/active/{id}/rubric-drafts/` holds the
+full audit trail — every version and every critique — so humans can replay
+the adversarial process. The final rubric lives at
+`tasks/{task-id}/micro-persona.md` as the single source of truth consumed
+by QA and the validation squad.
+
+**Dispatch pattern summary (AC #13):**
+```
+micro-persona-generator (v1) → rubric-adversary (critique v1)
+                              → code-analyzer-reviewer (v2)
+                              → rubric-adversary (critique v2)
+                              → code-analyzer-reviewer (v3)
+                              [exit — max 3 rounds]
+```
+
 ---
 
 ## STEP 6: UPDATE STATE

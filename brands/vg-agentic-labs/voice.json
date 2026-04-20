@@ -1,0 +1,10 @@
+{
+  "description": "Professional, confident narrator for VG Agentic Labs — gaming industry authority tone",
+  "qwen3": {
+    "speaker": "Ryan",
+    "language": "Auto",
+    "tone": "professional, confident",
+    "instruct": "Speak with authority and energy. You are presenting a cutting-edge AI platform to gaming industry professionals. Be direct, credible, and compelling — not salesy.",
+    "clone": null
+  }
+}

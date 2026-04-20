@@ -1,0 +1,173 @@
+# sudd/sudd.yaml — Central agent configuration
+# Change models here, not in agent .md files
+
+# Primary CLI agent (set during sudd init)
+# Values: claude | crush | opencode
+cli: claude
+
+# Model tiers — configure which model each tier uses
+# The low tier is used by opencode for execution tasks
+tiers:
+  low:
+    model: MiniMax-M2.7
+    provider: minimax-coding-plan
+    endpoint: ""
+    cli: opencode
+  mid:
+    model: claude-sonnet-4-6
+    provider: anthropic
+    endpoint: ""
+    cli: claude-code
+  top:
+    model: claude-opus-4-6
+    provider: anthropic
+    endpoint: ""
+    cli: claude-code
+
+# Default escalation ladder (applies to all agents unless overridden)
+escalation:
+  default_tier: free
+  ladder:
+    0-1: free        # MiniMax, opencode, local models
+    2-3: sonnet      # + Sonnet for validation agents
+    4-5: sonnet      # Sonnet for all agents
+    6-7: opus        # Opus for all agents
+    8: stuck          # Mark STUCK, stop retrying
+
+# Model mapping for subagent dispatch (Claude Code Agent tool parameter)
+# "free" tier maps differently for inline vs subagent:
+#   Inline: uses whatever local/free model the CLI provides
+#   Subagent: uses haiku (cheapest Claude model via Agent tool)
+model_mapping:
+  free: haiku
+  sonnet: sonnet
+  opus: opus
+
+# Per-agent model assignment
+# Principle: judgment/strategic agents → opus, analytical → sonnet, execution → free
+agents:
+  # JUDGMENT TIER (opus) — these make critical decisions that shape everything downstream
+  solution-explorer: { tier: opus, execution: subagent }   # picks the approach — wrong choice wastes the entire change
+  architect:         { tier: opus, execution: subagent }   # designs the solution — bad design = bad code
+  deep-think:        { tier: opus, execution: inline }   # alignment validation — catches vision drift
+  decomposer:        { tier: opus, execution: inline }   # breaks down work — bad decomposition = bad tasks
+  persona-validator: { tier: opus, execution: subagent }   # THE gate — must catch real issues, not rubber-stamp
+  ux-architect:      { tier: opus, execution: inline }     # UI specification during planning (v3.1)
+
+  # ANALYTICAL TIER (sonnet) — need reasoning depth but within constrained formats
+  researcher:        { tier: sonnet, execution: inline } # needs to find and evaluate information
+  antigravity:       { tier: sonnet, execution: inline } # back-planning requires working backward from outcomes
+  qa:                { tier: sonnet, execution: subagent } # test design needs understanding of edge cases
+  peer-reviewer:     { tier: sonnet, execution: subagent } # code review needs technical depth
+  coder:             { tier: sonnet, execution: subagent } # implementation needs problem-solving ability
+  integration-reviewer: { tier: sonnet, execution: subagent }  # end-to-end data flow verification
+  macro-wiring-checker: { tier: sonnet, execution: subagent }  # change-level reachability at gate
+  ux-reviewer:       { tier: sonnet, execution: subagent }   # design quality validation in build squad (v3.1)
+
+  # EXECUTION TIER (free) — follow templates, check boxes, classify, route
+  persona-detector:  { tier: free, execution: inline }   # pattern matching against consumer types
+  persona-researcher: { tier: free, execution: inline }  # structured research following a template
+  contract-verifier: { tier: free, execution: subagent }   # checklist verification against schema
+  # Removed in v3.0: handoff-validator (subsumed by integration-reviewer)
+  blocker-detector:  { tier: free, execution: inline }   # classification into 3 categories
+  learning-engine:   { tier: free, execution: inline }   # append to lessons.md following template
+  context-manager:   { tier: free, execution: inline }   # reads and filters, writes nothing
+  monitor:           { tier: free, execution: inline }   # reads state, flags thresholds
+  task-discoverer:   { tier: free, execution: inline }   # scans codebase, creates proposals
+  codebase-explorer: { tier: sonnet, execution: subagent }  # repo-level code audit for discovery/audit (v3.4)
+  alignment-reviewer: { tier: sonnet, execution: subagent } # docs vs code gap analysis (v3.4)
+  ux-tester:         { tier: free, execution: subagent }   # follows test script with browser
+  micro-persona-generator: { tier: free, execution: inline }  # template-based generation from tasks.md
+  wiring-checker:     { tier: free, execution: subagent }   # static reachability analysis per task
+  micro-persona-validator: { tier: free, execution: subagent }  # binary PASS/FAIL consumer check per task
+
+# Test framework (auto-detected, can be overridden)
+# test_command: "go test ./..."
+
+# Cost mode (determines which tier assignments above are active)
+# balanced:      use the per-agent tiers above (opus/sonnet/free as assigned) — DEFAULT
+# free-first:    override ALL agents to free, escalate only on failure
+# quality-first: override analytical tier to opus (15 opus + 5 free)
+#
+# User sets this explicitly. SUDD never switches cost_mode on its own.
+cost_mode: balanced
+
+# Parallelization strategy for multi-task batches
+# sequential: (DEFAULT) tasks run one at a time in main workspace — reliable, no merge risk
+# worktree:   independent tasks run in parallel git worktrees — faster but requires clean
+#             task boundaries. Only opt in if your tasks truly don't share lock files,
+#             config files, or implicit dependencies. See context-manager.md for details.
+parallelization:
+  mode: sequential
+  # mode: worktree
+
+# Discovery pipeline (sudd discover)
+# Compares codebase reality vs SUDD docs to find gaps and generate proposals.
+discovery:
+  run_every_n_changes: 3        # run after every N archived changes
+  min_interval_minutes: 5       # minimum minutes between discovery runs
+  auto_on_empty_queue: true     # auto-trigger when sudd:auto queue is empty
+  auto_on_port: true            # auto-trigger after sudd:port completes
+
+# Platform audit (sudd audit)
+# Whole-platform persona validation. Works on any repo state.
+audit:
+  auto_after_n_changes: 5       # run audit after every N completed changes in auto (0 = never)
+  browser_testing: true         # enable live browser testing during audit
+  start_command: ""             # override dev server start command
+  url: ""                       # override URL (skip dev server, test against deployed)
+
+# Learning (v3.6)
+# Cross-repo pattern sharing via ~/.sudd/learning/
+# Optional semantic search via MemPalace MCP
+learning:
+  enabled: true                       # master switch for learning pipeline
+  global_patterns: true               # write promoted patterns to ~/.sudd/learning/patterns.md
+  global_dir: "~/.sudd/learning"      # global learning directory (expanded at runtime)
+  inject_global: true                 # read global patterns during Mode 2 injection
+  pattern_threshold: 3                # minimum occurrences from different changes to promote
+  max_injected_items: 5               # max lessons+patterns injected per task
+  confidence_decay:
+    stale_after_changes: 5            # drop confidence one level after N changes without reinforcement
+    archive_after_changes: 10         # archive LOW confidence lessons not seen for N changes
+
+# MemPalace integration (v3.6)
+# Semantic memory index via MCP server. Optional — requires `pip install mempalace`.
+# When enabled, agents use mempalace_search for semantic retrieval instead of tag matching.
+# Markdown stays as canonical source; MemPalace is a read-optimized index.
+mempalace:
+  enabled: true                        # requires `pip install mempalace` — set to false if unavailable
+  palace_path: "~/.mempalace"         # where MemPalace stores its ChromaDB + SQLite
+  wing_name: ""                       # auto-detect from cwd basename if empty
+  rooms:                              # rooms per wing (mapped to SUDD memory types)
+    - lessons                         # indexed from memory/lessons.md
+    - patterns                        # indexed from memory/patterns.md
+    - sessions                        # mined from log.md (full execution context)
+    - stuck                           # indexed from memory/stuck-history/
+  index_log_md: true                  # mine full log.md into sessions room after each change
+  semantic_injection: true            # use mempalace_search for Mode 2 injection
+  fallback_to_tags: true              # if MCP unavailable, fall back to tag matching
+
+# Autonomous mode (sudd auto)
+# Session budgets and subprocess configuration.
+auto:
+  max_hours: 8                    # session time limit
+  max_changes: 5                  # max changes per session
+  per_change_timeout_hours: 4     # kill runaway changes
+  stop_on_stuck: false            # continue after STUCK changes
+  priority_order: "oldest_first"  # oldest_first | newest_first
+  vision_last: true               # vision.md runs last
+  cli_override: ""                # auto-detect from tiers.mid.cli
+  # cli_flags: per-CLI defaults applied automatically when empty:
+  #   claude  → "--dangerously-skip-permissions --max-turns 200"
+  #   opencode → "" (no extra flags needed)
+  #   crush   → "" (no extra flags needed)
+  # Override only if you need custom flags for your CLI.
+  cli_flags: ""
+  max_report_days: 30             # auto-delete reports older than this
+
+# Adaptive planning: when to dispatch planning agents as subagents
+adaptive_planning:
+  small: 5     # <= 5 tasks: all planning agents inline
+  medium: 12   # 6-12 tasks: architect + solution-explorer as subagent
+  large: 13    # 13+ tasks: all planning agents as subagent

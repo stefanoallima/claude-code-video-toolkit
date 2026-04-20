@@ -4,7 +4,7 @@ description: "Initialize SUDD in a project. Use when setting up SUDD for the fir
 license: MIT
 metadata:
   author: sudd
-  version: "3.8.10"
+  version: "3.8.25"
 ---
 
 You are initializing SUDD2 in the current repository. This sets up the full autonomous development framework with 20 agents, memory system, and orchestrator commands.
@@ -63,7 +63,7 @@ Create each of the following agent `.md` files in `agents/`. Each file contains 
 11. `agents/qa.md`
 
 ### Validation
-12. `agents/handoff-validator.md`
+12. `agents/integration-reviewer.md`
 13. `agents/contract-verifier.md`
 14. `agents/peer-reviewer.md`
 15. `agents/persona-validator.md`
@@ -115,15 +115,13 @@ Patterns are lessons that appear 3+ times. Automatically promoted from `lessons.
 (No patterns detected yet)
 ```
 
-Write `memory/session-log.md`:
+Write `memory/session-log.md` (retired — pointer only):
 ```markdown
-# SUDD2 Session Log
+# SUDD2 Session Log — RETIRED
 
-Health reports from the monitor agent. Most recent first.
-
----
-
-(No sessions yet)
+Auto-session history lives in `sudd/auto-reports/{YYYY-MM-DD}/summary.md`
+and `sudd/state.json.auto_session`. This file is retained only as a
+pointer and is no longer written to.
 ```
 
 Create directory `memory/stuck-history/` and write `memory/stuck-history/.gitkeep`:
@@ -327,7 +325,7 @@ SUDD2 INITIALIZED
 Agents:    20 (in agents/)
 Personas:  1 default (in personas/)
 Changes:   1 example (in changes/active/)
-Memory:    3 files (lessons, patterns, session-log)
+Memory:    2 files (lessons, patterns) — session history in auto-reports/
 Commands:  /sudd:run, /sudd:add-task, /sudd:status
 
 Next steps:

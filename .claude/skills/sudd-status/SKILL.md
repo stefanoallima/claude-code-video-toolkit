@@ -4,7 +4,7 @@ description: "Show SUDD state and progress. Use when the user wants to check sta
 license: MIT
 metadata:
   author: sudd
-  version: "3.8.10"
+  version: "3.8.25"
 ---
 
 Show current SUDD state, active work, and session statistics.

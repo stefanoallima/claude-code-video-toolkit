@@ -1,0 +1,491 @@
+{
+  "version": "1.0",
+  "scope": "audit",
+  "generated_at": "2026-04-20T00:30:00Z",
+  "git_sha": "2eb9211c715ee50fc6300729cc23d8870eb4ac08",
+  "target_repo": "/Users/apple/GitHub/sudd2",
+  "agent_spec_note": "sudd/agents/code-analyzer-be.md prescribes an HTTP-framework schema (fastapi|express|...). This repo has no HTTP backend — it is a Go CLI (cobra) + embedded markdown framework. Output uses the best-effort fallback schema specified by the invoking orchestrator: tech_stack, cli_surface[], internal_packages[], state_json_shape, gaps[], concerns[], summary.",
+  "confidence_overall": "HIGH",
+
+  "tech_stack": {
+    "primary_language": "go",
+    "secondary_languages": ["markdown", "yaml", "shell", "json"],
+    "frameworks": {
+      "cli": "github.com/spf13/cobra",
+      "tui": "github.com/charmbracelet/bubbletea + lipgloss + bubbles",
+      "config": "gopkg.in/yaml.v3",
+      "templating": "go:embed (sudd-go/cmd/sudd/templates)"
+    },
+    "runtime_companion": {
+      "name": "persona-browser-agent",
+      "kind": "python sibling repo",
+      "note": "Not present in this repo — auto-installed by `sudd init` when sibling directory is detected."
+    },
+    "confidence": "HIGH"
+  },
+
+  "cli_surface": [
+    {
+      "name": "init",
+      "file": "sudd-go/cmd/sudd/main.go:41",
+      "handler": "runInit (main.go:243)",
+      "registered_via": "rootCmd.AddCommand(initCmd) @ main.go:114",
+      "has_tests": "partial (main_test.go covers helpers; no end-to-end test for runInit)",
+      "has_error_handling": true,
+      "state_writes": ["sudd.yaml via installer.WriteCLIToYAML", "sudd/vision.md stub", ".sudd-version"],
+      "concerns": [
+        {
+          "severity": "low",
+          "evidence": "main.go:252 — filepath.Abs error path exits cleanly but target default of `.` is silently used without arg validation."
+        }
+      ]
+    },
+    {
+      "name": "status",
+      "file": "sudd-go/cmd/sudd/main.go:48",
+      "handler": "runStatus (main.go:564)",
+      "has_tests": "no",
+      "has_error_handling": true,
+      "state_writes": [],
+      "reads": ["state.json via auto.LoadState (main.go:630 — best-effort; silently skips on error, which is intended per comment)"]
+    },
+    {
+      "name": "update",
+      "file": "sudd-go/cmd/sudd/main.go:55",
+      "handler": "runUpdate (main.go:636)",
+      "has_tests": "partial (installer livesource_test.go covers the copy engine)",
+      "has_error_handling": true,
+      "state_writes": [".sudd-version", "sudd/ framework files via installer.UpdateFromLiveSourceWithOptions", "~/.sudd/snapshots/<slug>/<ts>.tar.gz"],
+      "guards": [
+        "Self-update refusal (main.go:667-679): refuses when target == sudd2 source repo unless --allow-self-update.",
+        "Shrink-gate via installer.UpdateOptions.AllowShrink (main.go:762) — refuses writes that shrink >50% or to 0 bytes."
+      ]
+    },
+    {
+      "name": "setup",
+      "file": "sudd-go/cmd/sudd/main.go:62",
+      "handler": "runSetup (main.go:167)",
+      "has_tests": "no",
+      "has_error_handling": true,
+      "state_writes": ["~/.sudd/config.yaml via installer.WriteGlobalConfig"]
+    },
+    {
+      "name": "auto",
+      "file": "sudd-go/cmd/sudd/auto.go:21",
+      "handler": "runAutoCmd (auto.go:52)",
+      "has_tests": "partial (auto_finalize_test.go; deeper helpers in internal/auto/*_test.go)",
+      "has_error_handling": true,
+      "state_writes": [
+        "sudd/state.json (auto.SaveState — many call sites; NON-ATOMIC, see concerns)",
+        "sudd/auto-reports/<date>/<id>.log",
+        "sudd/auto-reports/<date>/summary.md",
+        "sudd/changes/active/<id>/ → archive/ | stuck/ | dirty/ via performArchival (runner.go:660)",
+        "sudd/memory/lessons.md heading rewrite via RewriteLessonHeading (runner.go:717)",
+        "sudd/vision.md ## Current Path via vision.AppendPathEntry (runner.go:724)",
+        "sudd/CURRENT_STATE.md via state.Refresh (runner.go:731, auto.go:483+614)",
+        "sudd/memory/session-log.md via appendSessionLog (runner.go:809)"
+      ],
+      "guards": [
+        "doctor preflight gate (auto.go:90-120)",
+        "--retry-stuck (auto.go:67)",
+        "--skip-preflight / --probe / --fresh flags",
+        "deferred finalize (auto.go:239) runs MarkSessionEnd on panic/normal/signal/budget exit"
+      ]
+    },
+    {
+      "name": "audit",
+      "file": "sudd-go/cmd/sudd/audit.go:19",
+      "handler": "runAuditCmd (audit.go:35)",
+      "has_tests": "no (no audit_test.go at CLI layer; auto.RunAudit is a thin subprocess wrapper with no unit test either)",
+      "has_error_handling": true,
+      "state_writes": ["sudd/audit/audit.log (os.Create — truncates each run)"],
+      "delegates_to": "auto.RunAudit (internal/auto/audit.go:15) — builds /sudd-audit prompt and launches CLI subprocess."
+    },
+    {
+      "name": "metrics",
+      "file": "sudd-go/cmd/sudd/metrics.go",
+      "handler": "runMetrics",
+      "has_tests": "yes (metrics_test.go)",
+      "has_error_handling": true,
+      "state_writes": []
+    },
+    {
+      "name": "doctor",
+      "file": "sudd-go/cmd/sudd/doctor.go",
+      "handler": "runDoctor",
+      "has_tests": "no (CLI-level); internal/doctor/*_test.go covers checks",
+      "has_error_handling": true,
+      "state_writes": ["~/.sudd/cache/doctor/<slug>.json via doctor.SaveCache"]
+    },
+    {
+      "name": "diagnose",
+      "file": "sudd-go/cmd/sudd/diagnose.go",
+      "handler": "runDiagnose",
+      "has_tests": "no",
+      "has_error_handling": true,
+      "state_writes": []
+    },
+    {
+      "name": "heal",
+      "file": "sudd-go/cmd/sudd/heal.go",
+      "handler": "runHeal",
+      "has_tests": "no (CLI-level); internal/installer/healing_test.go covers heal engine",
+      "has_error_handling": true,
+      "state_writes": ["sudd/sudd.yaml, sudd/state.json, sudd/personas/default.md (when degraded)"]
+    },
+    {
+      "name": "triage",
+      "file": "sudd-go/cmd/sudd/triage.go",
+      "handler": "runTriage",
+      "has_tests": "no (CLI-level); internal/triage/* has tests",
+      "has_error_handling": true,
+      "state_writes": ["sudd/changes/inbox/<id>/ promotions"]
+    },
+    {
+      "name": "promote",
+      "file": "sudd-go/cmd/sudd/promote.go:12",
+      "handler": "runPromote (promote.go:36)",
+      "has_tests": "no (CLI-level); internal/inbox has tests",
+      "has_error_handling": true,
+      "state_writes": ["sudd/changes/inbox/<id>/ → sudd/changes/active/NNN_<id>/"]
+    },
+    {
+      "name": "list-snapshots",
+      "file": "sudd-go/cmd/sudd/snapshot.go:13",
+      "handler": "runListSnapshots (snapshot.go:43)",
+      "has_tests": "no (CLI-level); internal/snapshot has tests",
+      "has_error_handling": true,
+      "state_writes": []
+    },
+    {
+      "name": "restore-snapshot",
+      "file": "sudd-go/cmd/sudd/snapshot.go:25",
+      "handler": "runRestoreSnapshot (snapshot.go:75)",
+      "has_tests": "no",
+      "has_error_handling": true,
+      "state_writes": ["overwrites sudd/ framework files from snapshot tarball"]
+    },
+    {
+      "name": "learn",
+      "file": "sudd-go/cmd/sudd/learn.go:15",
+      "handler": "learnCmd (subcommand group)",
+      "subcommands": ["status", "sync", "import", "promote", "mine"],
+      "has_tests": "no",
+      "has_error_handling": true,
+      "state_writes": ["~/.sudd/learning/patterns.md, sudd/memory/patterns.md"]
+    },
+    {
+      "name": "vision",
+      "file": "sudd-go/cmd/sudd/vision.go:12",
+      "handler": "visionCmd (read-only group with `context` child at vision.go:24)",
+      "has_tests": "no (CLI-level); internal/vision/* has tests",
+      "has_error_handling": true,
+      "state_writes": []
+    },
+    {
+      "name": "state",
+      "file": "sudd-go/cmd/sudd/state_cli.go",
+      "handler": "stateCmd",
+      "has_tests": "yes (state_cli_test.go)",
+      "has_error_handling": true,
+      "state_writes": []
+    }
+  ],
+
+  "cli_surface_discrepancy": {
+    "severity": "medium",
+    "finding": "sudd/codebase-manifest.json:92 lists a `fleet` CLI subcommand (\"fleet status/update helpers for multi-project rollups\") but there is NO cobra command named `fleet` registered. fleet.go contains only helper functions (statusAllSiblingsRun, updateAllSiblingsRun, readSuddVersion, etc.) invoked by the --all-siblings flags on status/update/metrics.",
+    "evidence": "sudd-go/cmd/sudd/fleet.go has no init() function and no rootCmd.AddCommand call; grep across sudd-go for `fleetCmd` or `\"fleet\"` as a cobra Use: returns zero matches. Confirmed via `grep -rn fleet sudd-go/cmd/sudd/` — only --all-siblings flag descriptions reference 'fleet status' in prose.",
+    "confidence": "HIGH"
+  },
+
+  "internal_packages": [
+    {
+      "name": "internal/auto",
+      "role": "autonomous-pipeline",
+      "files": 27,
+      "key_files": [
+        "config.go", "queue.go", "runner.go (991 lines)", "discovery.go", "audit.go",
+        "state.go (756 lines)", "report.go", "learning.go (208 lines)", "stuck.go",
+        "checks.go", "followup.go", "tasks.go", "summary.go", "shutdown_unix.go", "shutdown_windows.go"
+      ],
+      "dead_code_candidates": [
+        {
+          "name": "AutoSession.UnmarshalJSON legacy-numeric branch",
+          "file": "sudd-go/internal/auto/state.go:52-78",
+          "evidence": "Comment claims the format was 'legacy numeric format from older orchestrators' — no longer producible by any code path in-tree. Remains defensively to tolerate forward-compat reads, so not strictly dead, but should be documented with a sunset date.",
+          "confidence": "LOW"
+        },
+        {
+          "name": "RollupSessionStats (unused after inline stats rewrite)",
+          "file": "sudd-go/internal/auto/state.go:467-514",
+          "evidence": "Comment says 'Called once at session end' but runAutoCmd no longer calls it — stats are now bumped inline via IncrementChangeStats (auto.go:373) and the deferred finalizer (auto.go:592) explicitly no longer rolls up. Function is orphaned but still exported. grep sudd-go for 'RollupSessionStats' outside state.go/state_test.go to confirm.",
+          "confidence": "MEDIUM"
+        }
+      ],
+      "concerns": [
+        {
+          "severity": "high",
+          "category": "atomicity",
+          "title": "auto.SaveState writes sudd/state.json non-atomically",
+          "evidence": "sudd-go/internal/auto/state.go:178 — `return os.WriteFile(statePath(projectDir), data, 0644)`. No tmp+fsync+rename. Compare with internal/state/write.go:78 writeAtomic and internal/vision/vision.go:86 atomicWrite which DO use the atomic pattern. `sudd auto` calls SaveState ~6-8 times per processed change (queue advance, inline stats, counter bumps, vision-processed-at, etc.) — a crash or SIGKILL mid-write leaves state.json partially written/corrupted. A corrupt state.json breaks the next session's LoadState entirely (fatal error in LoadState at state.go:109). The framework documents 'EnsureGitClean' and fsync-safe markdown writes as design invariants; state.json — the single most load-bearing piece of state — violates that invariant.",
+          "remediation": "Replace os.WriteFile with tmp+fsync+rename (copy writeAtomic from internal/state/write.go:78)."
+        },
+        {
+          "severity": "medium",
+          "category": "silent-failure",
+          "title": "SaveState errors in auto.go are logged to stderr but never abort the session",
+          "evidence": "sudd-go/cmd/sudd/auto.go lines 186, 282, 377, 394, 410, 423, 464, 545, 603, 615 — every SaveState call uses the pattern `if saveErr := auto.SaveState(...); saveErr != nil { fmt.Fprintf(os.Stderr, \"Warning: ...\", saveErr) }`. If the disk fills or perms break, the whole auto session continues processing changes while state.json is never updated. Combined with the non-atomic write above, this means a corrupted state.json is emitted without any propagation to the operator.",
+          "remediation": "At minimum, increment a 'save_failures' counter and abort the loop after N consecutive failures."
+        },
+        {
+          "severity": "medium",
+          "category": "partial-implementation",
+          "title": "RunAudit swallows stderr into audit.log without surfacing meaningful error classification",
+          "evidence": "sudd-go/internal/auto/audit.go:63-66 — any subprocess error is wrapped as `audit subprocess: %w` and returned. The exit code (e.g. timeout vs. network failure vs. LLM quota exhaustion) is not mapped to distinct outcomes. The CLI caller (audit.go:97) then just prints 'Audit failed' with the raw error and os.Exits(1) — user has no guidance on whether to retry, escalate, or investigate. The /sudd-audit markdown orchestrator is expected to know how to fail, but Go has no visibility into partial artifacts (e.g. codeintel.json exists but report.md does not).",
+          "remediation": "Parse audit.log tail for STUCK/CRITICAL/TIMEOUT markers and surface a classification (audit CLI.go:99)."
+        },
+        {
+          "severity": "low",
+          "category": "behavior-drift",
+          "title": "RunDiscovery assumes opencode and claude use identical prompt syntax",
+          "evidence": "sudd-go/internal/auto/discovery.go:66-70 — `prompt := \"/sudd-discover --force\"; if cliBinary == \"opencode\" { prompt = \"/sudd-discover --force\" }` — the two branches are identical. Either the opencode special case is defunct or was never needed. Dead conditional.",
+          "remediation": "Delete the redundant branch."
+        }
+      ]
+    },
+    {
+      "name": "internal/installer",
+      "role": "installer-and-component-logic",
+      "files": 22,
+      "regression_guard": {
+        "file": "sudd-go/internal/installer/framework_integrity_test.go",
+        "lines": 685,
+        "tests": [
+          "TestFrameworkIntegrity_NoZeroByteAgents (line 53)",
+          "TestFrameworkIntegrity_StandardsMDNotEmpty (line 90)",
+          "(+others for DONE_DIRTY outcome and runner STUCK reason per manifest)"
+        ],
+        "notes": "Runs against LIVE repo tree (sudd/agents/*, sudd/standards.md) to catch the v3.8.x self-wipe regression. Uses findSUDDRepoRoot walk-up heuristic (framework_integrity_test.go:30). Correctly t.Skipf when not in repo."
+      },
+      "concerns": [
+        {
+          "severity": "low",
+          "category": "test-coverage",
+          "title": "No regression guard for template count drift below live",
+          "evidence": "manifest comment block at framework_integrity_test.go:14-26 describes the v3.8.x damage where 'the shipping template in sudd-go/cmd/sudd/templates/ had become stale and was missing 9 agents.' The test asserts live count > 0 but does not compare live sudd/agents/ count to templates/ sudd/agents/ count — so a future silent template drift would still ship.",
+          "remediation": "Add TestTemplateCountMatchesLive comparing fs.WalkDir of live sudd/agents/ vs templateFS sudd/agents/."
+        }
+      ]
+    },
+    {
+      "name": "internal/state",
+      "role": "CURRENT_STATE.md render and refresh",
+      "files": 13,
+      "notes": "Owns sudd/CURRENT_STATE.md writes. Uses tmp+fsync+rename (write.go:78). Snapshots prior file to auto-reports/history/ before overwrite.",
+      "concerns": []
+    },
+    {
+      "name": "internal/vision",
+      "role": "vision.md split, divergence, prompt",
+      "files": 8,
+      "notes": "Owns sudd/vision.md writes. Uses tmp+fsync+rename (vision.go:86). Kill switch SUDD_VISION_PATH=off is read-safe (writes disabled, reads unchanged).",
+      "concerns": [
+        {
+          "severity": "low",
+          "category": "dead-assignment",
+          "title": "MigrateVisionMD has a dead statement",
+          "evidence": "sudd-go/internal/vision/vision.go:289 — `_ = i` is a no-op assignment left inside the titleBlock parse loop. Harmless, but indicates incomplete refactor.",
+          "remediation": "Delete the `_ = i` line."
+        }
+      ]
+    },
+    {
+      "name": "internal/doctor",
+      "role": "preflight-checks",
+      "files": 11
+    },
+    {
+      "name": "internal/porter",
+      "role": "import-from-foreign-frameworks",
+      "files": 8
+    },
+    {
+      "name": "internal/snapshot",
+      "role": "pre-update-snapshot-rollback",
+      "files": 2
+    },
+    {
+      "name": "internal/tui",
+      "role": "interactive-bubbletea-tui",
+      "files": 2
+    },
+    {
+      "name": "internal/inbox",
+      "role": "inbox-promotion",
+      "files": 5
+    },
+    {
+      "name": "internal/triage",
+      "role": "tui-batch-triage",
+      "files": 5
+    }
+  ],
+
+  "state_json_shape": {
+    "documented_schema_file": "sudd/state.schema.json",
+    "fields_typed_in_go": [
+      "active_change (string) — auto/state.go:84",
+      "phase (string) — auto/state.go:85",
+      "auto_session (*AutoSession) — auto/state.go:86",
+      "auto_session.started_at",
+      "auto_session.stop_reason",
+      "auto_session.changes_processed[]",
+      "auto_session.queue_remaining[]"
+    ],
+    "fields_read_from_raw_map": [
+      "autonomy (GetAutonomy @ state.go:249)",
+      "vision_last_processed_at (GetVisionProcessedAt @ state.go:266)",
+      "discovery.{last_run_at, changes_since_last, last_git_sha} (state.go:329)",
+      "audit.{changes_since_last_audit, last_audit_at, last_audit_health, last_audit_score} (state.go:357-450)",
+      "stats.{tasks_completed, tasks_stuck, tasks_blocked, total_retries, total_done_dirty, stats_seeded} (state.go:532-679)",
+      "retry_count, tests_passed, gate_passed, personas_validated, architecture_reviewed, design_gate_passed, gate_score, design_gate_score (ClearChangeState @ state.go:191-218)"
+    ],
+    "roundtrip_safety": {
+      "assessment": "GOOD for the typed fields — raw map preserves unknown fields verbatim. LoadState (auto/state.go:102-142) unmarshals into map[string]json.RawMessage first, then pulls typed fields; SaveState (auto/state.go:146-179) marshals typed fields back into the raw map. Pattern is correct.",
+      "issue": "WRITE IS NOT ATOMIC — see cli_surface → auto concerns. Any crash mid-write produces truncated JSON that LoadState cannot parse on next session (auto/state.go:109 returns fmt.Errorf(\"parse state.json: %w\"); runAutoCmd os.Exit(1)s on that error at auto.go:177-179)."
+    }
+  },
+
+  "gaps": [
+    {
+      "id": "GAP-1",
+      "severity": "high",
+      "title": "state.json writes are not atomic",
+      "evidence": "sudd-go/internal/auto/state.go:178",
+      "impact": "Crash mid-save produces unparseable state.json; next `sudd auto` exits with 'parse state.json' error (auto.go:177). Worse, the morning report never gets written (WriteReport is after the affected save sites). An 8-hour auto run can lose all stats."
+    },
+    {
+      "id": "GAP-2",
+      "severity": "medium",
+      "title": "`fleet` CLI subcommand advertised in manifest but not registered",
+      "evidence": "sudd/codebase-manifest.json:92 vs sudd-go/cmd/sudd/fleet.go has no init() and no rootCmd.AddCommand.",
+      "impact": "Documentation/reality drift; anyone reading the manifest and running `sudd fleet status` gets 'unknown command' from cobra. Does not break any workflow, but misleads operators and audit agents."
+    },
+    {
+      "id": "GAP-3",
+      "severity": "medium",
+      "title": "SaveState errors are warnings, never abort the loop",
+      "evidence": "sudd-go/cmd/sudd/auto.go:186, 282, 377, 394, 410, 423, 464, 545, 603, 615 — `fmt.Fprintf(os.Stderr, \"Warning: ...\", saveErr)` pattern.",
+      "impact": "Disk full / perms regression / read-only FS would produce stderr warnings nobody reads during an overnight run, while the loop keeps processing changes that can never be persisted."
+    },
+    {
+      "id": "GAP-4",
+      "severity": "medium",
+      "title": "No end-to-end test for `sudd audit` CLI",
+      "evidence": "No sudd-go/cmd/sudd/audit_test.go; internal/auto/audit.go is a thin subprocess launcher with no unit test.",
+      "impact": "Changes to prompt formatting (audit.go:16-25) or subprocess env handling could silently break audit runs — only detected when a night's audit fails."
+    },
+    {
+      "id": "GAP-5",
+      "severity": "medium",
+      "title": "RunAudit does not classify subprocess exit codes",
+      "evidence": "sudd-go/internal/auto/audit.go:57-66 wraps any error uniformly.",
+      "impact": "Timeout vs. quota vs. crash all surface as 'audit subprocess: <err>' — operator can't triage without reading audit.log."
+    },
+    {
+      "id": "GAP-6",
+      "severity": "low",
+      "title": "Dead code: RollupSessionStats no longer called by runAutoCmd",
+      "evidence": "sudd-go/internal/auto/state.go:467 — docstring says 'Called once at session end', but auto.go:500-507 explicitly documents that stats rollup is no longer done there (inline IncrementChangeStats replaced it).",
+      "impact": "Confusing for maintainers; may be re-introduced if someone reads the docstring and rewires the caller."
+    },
+    {
+      "id": "GAP-7",
+      "severity": "low",
+      "title": "Discovery prompt has dead conditional",
+      "evidence": "sudd-go/internal/auto/discovery.go:66-70 — both branches of the opencode/claude switch produce identical prompt string.",
+      "impact": "Harmless but telegraphs unfinished per-CLI prompt divergence work."
+    },
+    {
+      "id": "GAP-8",
+      "severity": "low",
+      "title": "No regression guard comparing live agent count to embedded template agent count",
+      "evidence": "sudd-go/internal/installer/framework_integrity_test.go asserts live != 0 but doesn't compare to templateFS.",
+      "impact": "Exactly the scenario framework_integrity_test.go was written to prevent (template drift below live) would still slip through if tomorrow's regression is 'shipped template shrinks by 5 agents' instead of 'live wipes'."
+    },
+    {
+      "id": "GAP-9",
+      "severity": "low",
+      "title": "MigrateVisionMD contains dead statement `_ = i`",
+      "evidence": "sudd-go/internal/vision/vision.go:289."
+    }
+  ],
+
+  "concerns": [
+    {
+      "id": "C1",
+      "severity": "critical",
+      "category": "atomicity",
+      "title": "state.json is written non-atomically and crash-unsafe",
+      "evidence_file_line": "sudd-go/internal/auto/state.go:178",
+      "details": "`os.WriteFile` with no tmp+rename. Every other markdown-owning write path in the codebase (internal/state/write.go:78 writeAtomic, internal/vision/vision.go:86 atomicWrite) uses tmp+fsync+rename. state.json is the most load-bearing piece of SUDD state and violates that invariant.",
+      "confidence": "HIGH"
+    },
+    {
+      "id": "C2",
+      "severity": "high",
+      "category": "silent-failure",
+      "title": "Save failures in runAutoCmd are logged but never escalate",
+      "evidence_file_line": "sudd-go/cmd/sudd/auto.go:186, 282, 377, 394, 410, 423, 464, 545, 603, 615",
+      "details": "Per the user's MEMORY entry ('Preflight blocks by default, never silent-fails'), this is the exact anti-pattern the framework warns against — warn-and-continue on config/state failures. state.json save errors during auto are literally the session's memory; losing them silently is a violation of the 'fail loud' contract.",
+      "confidence": "HIGH"
+    },
+    {
+      "id": "C3",
+      "severity": "medium",
+      "category": "documentation-drift",
+      "title": "sudd/codebase-manifest.json lists `fleet` as a cobra command but no such command exists",
+      "evidence_file_line": "sudd/codebase-manifest.json:92 vs. sudd-go/cmd/sudd/fleet.go (no init, no AddCommand)",
+      "details": "Fleet behavior is accessed only via --all-siblings flags on status/update/metrics. Running `sudd fleet <anything>` fails.",
+      "confidence": "HIGH"
+    },
+    {
+      "id": "C4",
+      "severity": "medium",
+      "category": "partial-implementation",
+      "title": "`sudd audit` has no Go-level tests and no subprocess outcome classification",
+      "evidence_file_line": "sudd-go/cmd/sudd/audit.go (no audit_test.go), sudd-go/internal/auto/audit.go:57-66",
+      "details": "Audit is the second-most-important autonomous surface (after `sudd auto`) and has zero unit-test coverage at either the CLI wrapper or internal helper layer. Any exit from the subprocess is mapped to 'audit subprocess: <err>' with no timeout vs quota vs crash distinction. The CLI caller (audit.go:97) just os.Exits(1) — no actionable guidance to operator.",
+      "confidence": "HIGH"
+    },
+    {
+      "id": "C5",
+      "severity": "medium",
+      "category": "dead-code-surface-area",
+      "title": "auto.RollupSessionStats is orphaned but still exported",
+      "evidence_file_line": "sudd-go/internal/auto/state.go:467",
+      "details": "Docstring claims 'Called once at session end' — but auto.go:500-507 explicitly says rollup is no longer needed because IncrementChangeStats bumps inline. Exported symbol with stale contract invites future re-wiring that would double-count. The pattern of inline stats was introduced specifically to avoid a mid-session-crash data loss; re-adding the rollup would reintroduce the same bug.",
+      "confidence": "MEDIUM"
+    }
+  ],
+
+  "summary": {
+    "headline": "SUDD's Go CLI is well-structured and heavily tested at the internal package layer, but three issues materially affect reliability: (1) state.json is written non-atomically, the single riskiest defect given how many times SaveState fires per auto session; (2) state-save failures are swallowed as warnings, violating the framework's own 'fail loud' principle; (3) the `sudd audit` surface has zero unit tests and opaque error classification.",
+    "top5_concerns": [
+      "CRITICAL: internal/auto/state.go:178 — state.json write is not atomic (`os.WriteFile` instead of tmp+fsync+rename). Inconsistent with internal/state/write.go:78 and internal/vision/vision.go:86 which ARE atomic. Any crash mid-write breaks the next `sudd auto` session (LoadState error path → os.Exit(1) at auto.go:177).",
+      "HIGH: sudd-go/cmd/sudd/auto.go lines 186, 282, 377, 394, 410, 423, 464, 545, 603, 615 — SaveState errors print 'Warning:' to stderr and continue. An overnight run with a broken disk silently drops every change's state update. Violates the user's documented 'never silent-fail on config failures' invariant (MEMORY/feedback_preflight_block_by_default.md).",
+      "MEDIUM: sudd/codebase-manifest.json:92 lists a `fleet` CLI command that does not exist. fleet.go has no init() and no rootCmd.AddCommand — only helpers for --all-siblings flags on other commands.",
+      "MEDIUM: sudd-go/internal/auto/audit.go:57-66 — audit subprocess failures are wrapped uniformly (`audit subprocess: %w`) with no exit-code classification (timeout vs quota vs crash). CLI caller at audit.go:97 just os.Exits(1). Zero tests at either audit.go or internal/auto/audit.go.",
+      "MEDIUM: sudd-go/internal/auto/state.go:467 — RollupSessionStats is orphaned but still exported. auto.go:500-507 explicitly no longer calls it (inline IncrementChangeStats replaced it, specifically to survive mid-session crashes). Stale docstring ('Called once at session end') invites future re-wiring that would reintroduce the data-loss regression the inline change fixed."
+    ],
+    "strengths": [
+      "internal/state/write.go and internal/vision/vision.go both use the correct tmp+fsync+rename atomic-write pattern — proof the team knows how to do this correctly elsewhere.",
+      "framework_integrity_test.go (685 lines) provides real regression guards against the v3.8.x self-wipe bug.",
+      "Deferred session finalizer in auto.go:239 correctly handles panic, signal, budget, and normal exit paths — a solid invariant.",
+      "State struct's raw-map preservation pattern (auto/state.go:82-142, 146-179) preserves unknown fields across load/save cycles.",
+      "Inline stats bump (auto.go:373) is the right fix for mid-session crash stat loss; the pattern just needs state.json writes to be atomic to be fully correct."
+    ],
+    "confidence_overall": "HIGH"
+  }
+}

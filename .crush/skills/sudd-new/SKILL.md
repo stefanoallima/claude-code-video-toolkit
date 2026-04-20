@@ -4,7 +4,7 @@ description: "Create a new change proposal. Use when the user wants to start a n
 license: MIT
 metadata:
   author: sudd
-  version: "3.8.10"
+  version: "3.8.25"
 ---
 
 Create a new change proposal. First step in the planning phase.
@@ -36,6 +36,21 @@ cat sudd/state.json
 If no active change, proceed. If active change exists:
 - Show current change
 - Ask: "Replace with new change, or continue existing?"
+
+---
+
+## STEP 0: LOAD VISION CONTEXT (v3824)
+
+Run `sudd vision context` and inject the output into your planning
+scratchpad as the section `## Vision Context` BEFORE drafting the
+proposal. This carries the user's North Star and the last 5 directional
+choices into proposal generation.
+
+Do NOT prompt the user about alignment — silent alignment is the success
+condition. The session-end divergence detector handles real divergence
+on its own (only fires after 3 consecutive DIVERGENT changes). When
+`sudd vision context` outputs nothing (vision.md missing/empty), proceed
+without context.
 
 ---
 

@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string",
+      "default": "1.0"
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "green",
+        "brown"
+      ],
+      "description": "green = vision only, brown = existing code/specs"
+    },
+    "autonomy": {
+      "type": "string",
+      "enum": [
+        "full",
+        "interactive"
+      ],
+      "default": "full",
+      "description": "full = auto-create prereqs, interactive = ask user"
+    },
+    "active_change": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Current change ID (e.g., green_auth_01)"
+    },
+    "phase": {
+      "type": "string",
+      "enum": [
+        "inception",
+        "planning",
+        "build",
+        "validate",
+        "complete"
+      ],
+      "default": "inception"
+    },
+    "retry_count": {
+      "type": "integer",
+      "default": 0,
+      "minimum": 0
+    },
+    "imported_from": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "openspec",
+        "superpowers",
+        null
+      ],
+      "description": "Source framework if ported"
+    },
+    "stats": {
+      "type": "object",
+      "properties": {
+        "tasks_completed": {
+          "type": "integer",
+          "default": 0
+        },
+        "tasks_stuck": {
+          "type": "integer",
+          "default": 0
+        },
+        "tasks_blocked": {
+          "type": "integer",
+          "default": 0
+        },
+        "total_retries": {
+          "type": "integer",
+          "default": 0
+        }
+      }
+    },
+    "last_command": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "last_run": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "tests_passed": {
+      "type": "boolean",
+      "default": false,
+      "description": "Set to true by /sudd:test when all tests pass"
+    },
+    "gate_score": {
+      "type": "integer",
+      "default": 0,
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Minimum consumer score from /sudd:gate"
+    },
+    "gate_passed": {
+      "type": "boolean",
+      "default": false,
+      "description": "Set to true by /sudd:gate when all consumers >= 95"
+    }
+  },
+  "required": [
+    "version",
+    "mode",
+    "autonomy",
+    "phase"
+  ]
+}

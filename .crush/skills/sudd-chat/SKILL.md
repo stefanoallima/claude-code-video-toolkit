@@ -4,7 +4,7 @@ description: "Thinking partner mode. Use when the user wants to explore ideas."
 license: MIT
 metadata:
   author: sudd
-  version: "3.8.10"
+  version: "3.8.25"
 ---
 
 Enter explore mode. Think deeply. Follow the conversation wherever it goes.
@@ -16,6 +16,28 @@ Enter explore mode. Think deeply. Follow the conversation wherever it goes.
 - A specific problem: "the auth system is getting unwieldy"
 - A change name: "green_auth_01" (to explore in context)
 - Nothing (just enter chat mode)
+
+---
+
+## STEP 0: LOAD VISION CONTEXT (v3824)
+
+Before entering the conversation, run `sudd vision context` and keep
+its output in your working memory. Reference the user's North Star and
+recent path entries when reasoning about new ideas. Do NOT prompt the
+user about alignment — silent alignment is the success condition.
+
+## EDIT-FROM-CONVERSATION (v3824)
+
+If the user explicitly says they want to update the vision (phrases
+like "add this to the path", "update the vision", "north star is now
+X", "save this as a path entry"), edit `sudd/vision.md` directly using
+your file-editing tools. Confirm in one short message what you
+appended/changed. This is the "if i bring things up it needs to involve
+me" half of the rule.
+
+The Go binary handles automatic path entries on archive — chat-mode
+edits are for north-star changes and detour annotations the user
+explicitly raises.
 
 ---
 

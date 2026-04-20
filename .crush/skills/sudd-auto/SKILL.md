@@ -4,7 +4,7 @@ description: "Fully autonomous mode. Use when you want to process all queued cha
 license: MIT
 metadata:
   author: sudd
-  version: "3.8.10"
+  version: "3.8.25"
 ---
 
 Fully autonomous mode. Processes all proposed changes in sequence,
@@ -33,6 +33,26 @@ cd sudd-go && make build && cd .. && sudd-go/bin/sudd auto
 The binary handles everything from here — queue building, subprocess
 launching, budget enforcement, crash recovery, and morning report.
 This CLI session can end after launching the binary.
+
+### Preflight gate (v3.8.11+)
+
+`sudd auto` runs `sudd doctor` as step 0 and refuses to start on any
+blocker (missing CLI, broken auth, degraded sudd.yaml, missing MCP
+tool). Results are cached per-device for 12h keyed by git SHA + yaml
+hash, so subsequent sessions on the same day skip preflight. Flags:
+
+- `--fresh`    — ignore cache, rerun all checks
+- `--probe`    — additionally send a 1-token prompt through each tier
+                 (catches silent plan/quota issues, ~3 tokens total)
+- `--skip-preflight` — escape hatch; use only when you have a reason
+
+### Vision.md auto-inference (v3.8.12+)
+
+Each spawned `sudd-run` subprocess begins with a vision-check step.
+If `sudd/vision.md` is empty, the subprocess synthesizes one from the
+repo's README, PROJECT_REPORT, AGENTS.md, top-level markdown, and
+package.json before doing any actual work. Populated vision.md is
+always preserved — never overwritten by update or by this step.
 
 ## CONFIGURATION
 

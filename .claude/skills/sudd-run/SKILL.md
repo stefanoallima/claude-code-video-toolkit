@@ -4,7 +4,7 @@ description: "Full autonomous SUDD workflow. Use when the user wants to build a 
 license: MIT
 metadata:
   author: sudd
-  version: "3.8.10"
+  version: "3.8.25"
 ---
 
 Full autonomous SUDD workflow. Runs the complete loop from vision to done.
@@ -22,6 +22,95 @@ Agent invocation follows `sudd/standards.md` → Agent Invocation.
 ---
 
 ## ORCHESTRATOR STARTUP
+
+0-first. **Session-start handoff read** (v3.8.23):
+   - Read `sudd/CURRENT_STATE.md` if present. It is a pre-baked,
+     link-dense snapshot of `active`, `stuck`, `just shipped`,
+     `inbox`, `next up`, and `trajectory vs vision`. Use it as the
+     primary source for "what's going on right now" INSTEAD of
+     re-exploring `changes/active/`, parsing `state.json`, or
+     re-reading archive SUMMARYs.
+   - Tolerate missing file — when absent, fall through to legacy
+     exploration below.
+   - Trust contract: every section except `## TL;DR` and
+     `## Trajectory vs Vision` is pure extraction from the filesystem
+     at the last refresh; links match on-disk paths. The
+     `<!-- refreshed-at: ... -->` header at the top carries the
+     refresh timestamp. If it's hours old, re-verify against the
+     filesystem before acting on it.
+
+0a. **Framework priority check** (v3.8.13):
+   - Read `AGENTS.md` and `sudd/AGENTS-SUDD.md` at session start
+   - **Default: SUDD is the canonical change framework for this repo.**
+   - For any new change request ("build X", "fix Y", "add Z"), use SUDD, NOT:
+     - openspec-* skills (create artifacts in `openspec/changes/`)
+     - superpowers brainstorming/plans (create artifacts in `docs/superpowers/`)
+     - feature-dev skills (fragment into `.planning/`)
+     - bmad (`_bmad/`, `_bmad-output/`)
+   - **Exception:** user explicitly names another framework ("use openspec", "brainstorm with superpowers", types `/openspec-new-change` directly). Respect that.
+   - **Exception:** already-in-flight foreign change. Continue it there; next `sudd auto` will port on completion.
+   - Merely having openspec/superpowers skills loaded is NOT an opt-out signal.
+
+0b. **Ensure vision exists** (v3.8.12):
+   - Read `sudd/vision.md`
+   - If empty or missing:
+     - Read the repo: `README.md`, `PROJECT_REPORT.md`, `AGENTS.md`, `package.json` description, top-level `*.md` files, `src/` structure
+     - Synthesize a vision covering: what the project is, who it's for, key objectives, constraints
+     - Write `sudd/vision.md` with the synthesis (30-80 lines, real content not placeholder)
+     - Log: `"auto-generated vision.md from repo content — review before next session"`
+   - If populated: use as-is, never overwrite
+   - This guards against the v3.8.x wipe bug that left repos with empty vision.md and hid project purpose from the orchestrator
+
+0c. **Ensure AGENTS.md is project-specific** (v3.8.13):
+   - Read `AGENTS.md` at the repo root
+   - If it contains `{{PLACEHOLDERS}}` like `{{PROJECT_NAME}}`, `{{PROJECT_PURPOSE}}`, `{{REPO_CONVENTIONS}}`, `{{KEY_FILES}}`:
+     - Synthesize from the repo (same sources as vision): `README.md`, `PROJECT_REPORT.md`, top-level source tree, `package.json`, etc.
+     - Fill placeholders with real content
+     - `{{PROJECT_NAME}}`: repo name
+     - `{{PROJECT_PURPOSE}}`: 2-4 sentences on what this project is and who it serves
+     - `{{REPO_CONVENTIONS}}`: coding style, directory taboos, teammates' preferences, anything that would be non-obvious to a fresh AI agent
+     - `{{KEY_FILES}}`: paths that actually matter in THIS repo
+     - Log: `"auto-filled AGENTS.md from repo content — review and refine"`
+   - If AGENTS.md has no placeholders, it's user-customized — use as-is, never overwrite
+   - If AGENTS.md matches known 1251-byte pre-v3.8.13 SUDD-stub: `sudd update` heals it to a fresh placeholder template before this step runs
+
+0d. **Promote inbox → active** (v3.8.13, mechanized in v3.8.15):
+   - Only runs in `green` mode (to avoid disrupting brown continuation)
+   - Check `sudd/changes/inbox/` for ported proposals awaiting review
+   - If inbox is empty: skip
+   - Otherwise:
+     - Run `sudd promote` (mechanical part): allocates next numeric SUDD id, moves inbox/{id}/ → active/NNN_{id}/, writes `EnrichmentHints.json` in each promoted change listing which fields need AI fill-in
+     - For each active change that has an `EnrichmentHints.json`:
+       - Read the hints (lists `needs_fields` like persona, priority, acceptance_criteria, size)
+       - Read `proposal.md` and `PORT_NOTES.md` for context
+       - Fill in missing fields at the top of `proposal.md` using SUDD's schema: `**ID:**`, `**Size:**`, `**Persona:**`, `**Priority:**`, and `## Acceptance Criteria` section
+       - Persona: pick from `sudd/personas/` whose profile matches the change's users (run `/sudd-plan` with persona focus if unsure)
+       - Priority: 1 (urgent/blocker), 2 (important), 3 (nice-to-have) based on vision.md alignment
+       - Size: S (≤2 files), M (3-6 files), L (>6 files or cross-cutting)
+       - Acceptance Criteria: 3-5 testable outcomes derived from proposal content
+       - Once filled, `rm EnrichmentHints.json` (work is done)
+       - **v3.8.18 — Per-change persona enrichment** (AC #6):
+         - If `sudd/changes/active/{id}/personas/` does NOT yet exist or contains only the default template file:
+           - Dispatch(agent=persona-detector, scope=change): reads proposal.md + specs.md (if present) and writes 1–3 consumer stubs into `active/{id}/personas/`.
+           - Dispatch(agent=persona-researcher, scope=change): enriches each stub through the 7-phase workflow (profile → usage → pain points → mental model → success criteria → failure modes → validation checklist).
+         - If `active/{id}/personas/` already has ≥1 non-template persona: skip (do not overwrite user-curated personas).
+         - Rationale: promoted changes must enter the queue with populated personas so the build loop has real consumers for micro-persona generation, not a default fallback.
+     - Log: `"promoted {n} inbox change(s), enriched {m}, persona-enriched {p}"`
+   - The `sudd-run` subprocess is the right layer for enrichment (has AI); `sudd promote` is the right layer for mechanical file moves (Go)
+
+0e. **Top-level persona auto-synthesis** (v3.8.18, AC #1, #4):
+   - Purpose: a repo with only `sudd/personas/default.md` (the factory template) produces shallow gate validation because every consumer falls back to the generic persona. Synthesize 2–3 real personas from repo content so validation actually reflects real users.
+   - Trigger: run only when the Go helper `installer.PersonasAreDefaultOnly(target)` returns true. That helper is true iff:
+     - `sudd/personas/` is missing or empty, OR
+     - every `.md` file in `sudd/personas/` is byte-identical to the embedded template, OR has < 50 bytes (wiped).
+   - Check also surfaces in `sudd doctor` as the `Personas` row (Unverifiable warn when default-only, Pass when ≥2 enriched).
+   - If trigger fires:
+     - Read repo signals: `README.md`, `sudd/vision.md`, top-level user-facing code (e.g., `package.json` description, public API handlers, CLI command surfaces).
+     - Dispatch(agent=persona-researcher, scope=repo, mode=synthesize):
+       - Input: the repo signals above + a request to produce 2–3 personas representing the most likely end-consumers.
+       - Output: writes 2–3 new persona files into `sudd/personas/{name}.md` (kebab-case, e.g., `backend-integrator.md`, `ops-lead.md`).
+     - Preserve rule: the agent MUST NOT overwrite any existing persona file unless it is byte-identical to the template or has < 50 bytes. User-customized files survive.
+   - If trigger does not fire: skip silently.
 
 1. **Load state**: Read `sudd/state.json`
 2. **Determine mode**:
@@ -557,6 +646,17 @@ VALIDATION LOOP:
   6d. ARCHIVE PHASE (inline /sudd:done logic):
       - If PASSED:
           → Step 2a: Dispatch(agent=learning-engine, mode=1): extract lessons to memory/lessons.md
+            The lesson heading MUST include the literal `{change-id}` so the
+            pre-archive assertion below can grep for it.
+          → **Pre-Archive Assertion (MANDATORY — DO NOT SKIP)**: run via Bash tool
+            `count=$(grep -c "{change-id}" sudd/memory/lessons.md 2>/dev/null || echo 0)`
+            - If count < 1: re-dispatch Step 2a. Max 2 retries.
+            - If still 0 after 2 retries: DO NOT `mv` to archive. Mark the change
+              STUCK with `reason="learning-pipeline-failure"` in STUCK.md and
+              stop — this is the silent-skip bug, not a transient failure.
+            - See done.md Step 2a for the full bash block and rationale.
+            - Canonical Go form: `auto.LessonRecorded(projectDir, changeID)`
+              in `sudd-go/internal/auto/learning.go`.
           → Step 2b: Dispatch(agent=learning-engine, mode=3): PATTERN PROMOTION (MANDATORY)
             - Scan ALL lessons, build tag frequency map
             - Promote patterns (3+ occurrences from different changes)
@@ -566,10 +666,30 @@ VALIDATION LOOP:
             - Index full log.md into sessions room for rich context preservation
             - Index lesson + new patterns into respective rooms
             - See done.md Step 2c for details
+          → **Step 2d: ENFORCE TASKS.MD CHECKBOX CLOSURE (MANDATORY)**: run via Bash tool
+            `unchecked=$(grep -c '^- \[ \]' sudd/changes/active/{id}/tasks.md 2>/dev/null || echo 0)`
+            - If unchecked > 0: STOP. Do NOT `mv` to archive/{id}_DONE.
+              Orchestrator must flip the boxes (if work is done) or route to STUCK
+              (if work is incomplete). See done.md Step 2d for the full bash block.
+            - Canonical Go form: `auto.TasksAllChecked(projectDir, changeID)`
+              in `sudd-go/internal/auto/tasks.go`.
+          → Emit SUMMARY.md into `active/{id}/` using the canonical 4-section
+            template (## What Changed / ## Why / ## Validation / ## Lessons).
+            Supplementary sections (Files Changed, Cost Summary) permitted.
+            Template lives in done.md Step 3 "### If DONE".
+          → **Step 2e: ENFORCE SUMMARY.md CANONICAL HEADINGS (MANDATORY)**: run via Bash tool
+            grep for each canonical heading (and its documented alias:
+            `Validation Results`, `Lessons Learned`) in the just-emitted file.
+            - If any heading missing: STOP. Do NOT `mv` to archive/{id}_DONE.
+              Re-emit from the canonical template. See done.md Step 2e.
+            - Canonical Go form: `auto.SummaryHasCanonicalHeadings(body)`
+              in `sudd-go/internal/auto/summary.go`.
           → Move to sudd/changes/archive/{change-id}_DONE/
-          → Create SUMMARY.md
       - If STUCK:
           → Step 2a: Dispatch(agent=learning-engine, mode=1): extract lessons (failures too)
+          → **Pre-Archive Assertion (MANDATORY)**: same grep-based check as
+            the DONE branch above — STUCK archives need the lesson too, so the
+            assertion fires here as well.
           → Step 2b: Dispatch(agent=learning-engine, mode=3): PATTERN PROMOTION (still runs)
           → Step 2c: INDEX SESSION IN MEMPALACE (if mempalace.enabled)
           → Move to sudd/changes/archive/{change-id}_STUCK/

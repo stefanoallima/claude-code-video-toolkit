@@ -4,7 +4,7 @@ description: "Implement tasks from the task list. Use when the user wants to sta
 license: MIT
 metadata:
   author: sudd
-  version: "3.8.10"
+  version: "3.8.25"
 ---
 
 Implement tasks from the change’s task list.
@@ -221,13 +221,21 @@ For each task about to execute:
 3. If both `[x]` AND commit exists → **Skip.** Log: "Task {id} already completed (commit: {sha})"
 4. If `[x]` but NO commit → WARNING: "Task marked complete but no commit found. Re-running."
 
-### 3a. Load Micro-Persona (v3.0)
+### 3a. Load Micro-Persona (v3.0, reinforced in v3.8.18 — AC #9)
 ```
 Read: sudd/changes/active/{id}/tasks/{task-id}/micro-persona.md
 
 If micro-persona missing:
-  → Run micro-persona-generator for this task
+  → Dispatch(agent=micro-persona-generator) for this task
+  → The generator emits the 4-category verification rubric (CONTRACT,
+    ERROR HANDLING, EDGE CASES, BEHAVIORAL) AND the Given/When/Then
+    acceptance scenarios (see micro-persona-generator.md STEP 2).
   → Log: "Generated micro-persona for {task-id} on-demand"
+
+This file MUST exist before dispatching coder in step 3c. The Given/When/Then
+scenarios here are what QA reads in step 3b — not ad-hoc interpretation of
+proposal/specs. Without it the task's contract is undefined and the
+validation squad has nothing to score against.
 ```
 
 ### 3b. Task(agent=qa) — TDD
@@ -346,13 +354,34 @@ Stagnation detection:
 
 ### 3f. Mark Complete
 
-Update `tasks.md`:
+Update `tasks.md` via the **Edit tool** (not prose — actually call Edit).
+This is the non-skippable write that the pre-archive assertion at
+done.md Step 2d will grep against. If it does not happen per task, the
+archive will fail loud.
+
+```
+Edit tool:
+  file_path: sudd/changes/active/{id}/tasks.md
+  old_string: "- [ ] T3: Implement API endpoints"
+  new_string: "- [x] T3: Implement API endpoints"
+```
+
+For tasks.md formats that use sub-checkbox lines (Effort:/Files:/
+Dependencies: header followed by `- [ ] <subitem>` bullets), flip every
+`- [ ]` subitem whose work landed in this task's commit. If Edit fails
+("old_string not found"), STOP and log loud: tasks.md is out of sync
+with the orchestrator's internal state, which is the exact regression
+class done.md Step 2d guards against.
+
 ```markdown
 - [x] T3: Implement API endpoints
   - Completed: {timestamp}
   - Validated: micro-persona PASS (100/100)
   - Files: api/endpoints.py, api/routes.py
 ```
+
+Canonical Go form of the closure check: `auto.TasksAllChecked(projectDir, changeID)`
+in `sudd-go/internal/auto/tasks.go`.
 
 Append to `log.md`:
 ```markdown

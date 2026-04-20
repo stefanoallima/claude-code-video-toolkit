@@ -23,10 +23,32 @@ Read sudd/state.json. If tests_passed != true: STOP. "Run /sudd:test first."
 
 ---
 
-## STEP 0: MACRO-WIRING CHECK (v3.0)
+## STEP 0: MACRO-WIRING CHECK (v3.0, AC #17)
 
 Dispatch(agent=macro-wiring-checker): verify all new code is reachable via git diff + full codebase.
 If ANY dead end, orphaned, or deferred-unresolved → FAIL, log to log.md, route to coder to fix wiring.
+
+---
+
+## STEP 0b: CHANGE-LEVEL CONTRACT VERIFICATION (v3.8.18, AC #16)
+
+Dispatch(agent=contract-verifier, scope=change):
+  - Input: specs.md `## Handoff Contracts` table + git diff vs base + tasks.md.
+  - For each row in the Handoff Contracts table (coder→qa, qa→persona-validator,
+    persona-validator→gate, gate→done/stuck):
+    - Verify every file claimed by the producer in that row actually exists
+      on disk and compiles.
+    - Verify every test/fixture claimed by the producer is discoverable by
+      the test runner.
+  - If ANY row is violated → HALT gate. Write the specific violation to
+    log.md under `## Contract Verification` and route to coder with
+    the named violation (not a generic "scores dropped").
+
+This is a change-level pass that complements the per-task contract-verifier
+already running in apply.md Step 3h. Per-task checks catch a single task's
+output; this checks the aggregated change's handoffs line up with what
+specs.md declared. Skipping this step means a change can pass per-task
+and still be internally inconsistent at merge time.
 
 ---
 

@@ -4,7 +4,7 @@ description: "Run tests and validate implementation. Use when the user wants to 
 license: MIT
 metadata:
   author: sudd
-  version: "3.8.10"
+  version: "3.8.25"
 ---
 
 Run tests and validate the implementation against specs.

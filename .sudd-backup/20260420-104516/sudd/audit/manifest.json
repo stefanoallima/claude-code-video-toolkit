@@ -1,0 +1,102 @@
+{
+  "version": "1.0",
+  "audit_scope": "platform",
+  "surface_kind": "cli+state-files+agent-tree",
+  "note": "No pages/routes — SUDD is a CLI + markdown framework. Below: CLI commands as 'pages', state file surface as 'data views', agent tree as 'capabilities'.",
+
+  "pages": [],
+  "frontend_routes": [],
+
+  "cli_routes": [
+    {"id": "init", "invocation": "sudd init [target]", "how_to_reach": "fresh clone — run from repo root or pass target path", "expected_features": ["install sudd/ skeleton", "create sudd.yaml", "create AGENTS.md placeholder"], "auth_required": false, "persona_objective": "obj#2"},
+    {"id": "status", "invocation": "sudd status [--all-siblings]", "how_to_reach": "any SUDD-initialized repo", "expected_features": ["show mode/phase/active change", "reads state.json LoadState (best-effort)"], "auth_required": false, "persona_objective": "obj#3, obj#4"},
+    {"id": "update", "invocation": "sudd update [target] [--components all] [--force] [--allow-shrink]", "how_to_reach": "sibling repo", "expected_features": ["snapshot before write", "shrink-gate refusal", "post-write integrity verify"], "auth_required": false, "persona_objective": "obj#2"},
+    {"id": "auto", "invocation": "sudd auto [target] [--retry-stuck] [--skip-preflight] [--probe] [--fresh]", "how_to_reach": "any SUDD-initialized repo with queue or proposals", "expected_features": ["doctor preflight gate", "process queue", "periodic audit+discovery", "deferred finalize on any exit path", "morning report"], "auth_required": false, "persona_objective": "obj#1, obj#2"},
+    {"id": "audit", "invocation": "sudd audit [target] [--url URL] [--skip-browser]", "how_to_reach": "platform-wide validation any time", "expected_features": ["write sudd/audit/audit.log", "delegate to /sudd-audit markdown orchestrator via CLI subprocess"], "auth_required": false, "persona_objective": "obj#1 platform-wide"},
+    {"id": "doctor", "invocation": "sudd doctor [--json]", "how_to_reach": "anytime", "expected_features": ["yaml health", "CLI+auth check per tier", "MCP probe (persona-test, playwright)"], "auth_required": false, "persona_objective": "obj#2 (fail loud)"},
+    {"id": "heal", "invocation": "sudd heal [target]", "how_to_reach": "when doctor reports degraded", "expected_features": ["repair stubs from embedded template (sudd.yaml, state.json, personas/default.md)"], "persona_objective": "obj#4"},
+    {"id": "triage", "invocation": "sudd triage [target]", "how_to_reach": "after `sudd auto` when inbox/ has items", "expected_features": ["TUI batch promotion", "EnrichmentHints.json fill-in"], "persona_objective": "obj#4"},
+    {"id": "promote", "invocation": "sudd promote <inbox-id> [target]", "how_to_reach": "manual promote of a single inbox item", "expected_features": ["allocate numeric id", "move inbox → active/NNN_<id>/"]},
+    {"id": "list-snapshots", "invocation": "sudd list-snapshots [target]", "how_to_reach": "rollback prep", "expected_features": ["list ~/.sudd/snapshots/<slug>/"]},
+    {"id": "restore-snapshot", "invocation": "sudd restore-snapshot [target] [timestamp]", "how_to_reach": "post-regression rollback", "expected_features": ["extract tarball over sudd/"], "persona_objective": "obj#2"},
+    {"id": "metrics", "invocation": "sudd metrics [target] [--all-siblings]", "how_to_reach": "anytime", "expected_features": ["git + archive rollup"], "persona_objective": "obj#3"},
+    {"id": "vision", "invocation": "sudd vision [context]", "how_to_reach": "anytime", "expected_features": ["print North Star + Current Path", "context subcmd injects last 5 path entries"], "read_only": true, "persona_objective": "obj#3"},
+    {"id": "state", "invocation": "sudd state [--refresh] [--no-llm]", "how_to_reach": "anytime", "expected_features": ["print CURRENT_STATE.md", "--refresh regenerates with filesystem-truth TL;DR"], "persona_objective": "obj#3"},
+    {"id": "learn", "invocation": "sudd learn {status|sync|import|promote|mine}", "how_to_reach": "anytime", "expected_features": ["cross-repo pattern share via ~/.sudd/learning/patterns.md"]},
+    {"id": "setup", "invocation": "sudd setup", "how_to_reach": "first-time global config", "expected_features": ["write ~/.sudd/config.yaml"]},
+    {"id": "diagnose", "invocation": "sudd diagnose [target] [--all-siblings]", "how_to_reach": "fleet health check", "expected_features": ["integrity + contracts + tier-drift"], "persona_objective": "obj#4"}
+  ],
+
+  "state_views": [
+    {"id": "state_json", "path": "sudd/state.json", "purpose": "authoritative orchestrator state", "read_by": ["sudd status", "sudd state", "sudd auto LoadState (auto/state.go:102)"], "write_by": ["sudd-go/internal/auto/state.go:178 SaveState (NON-ATOMIC)"], "persona_objective": "obj#2, obj#3, obj#4", "criticality": "load-bearing"},
+    {"id": "current_state_md", "path": "sudd/CURRENT_STATE.md", "purpose": "rolling handoff doc (session start read)", "read_by": ["session-start by CLI agent"], "write_by": ["sudd-go/internal/state/write.go:78 atomicWrite (ATOMIC)"], "persona_objective": "obj#3"},
+    {"id": "vision_md", "path": "sudd/vision.md", "purpose": "North Star + Current Path (sacred)", "read_by": ["sudd vision", "sudd vision context", "/sudd-run step 0b"], "write_by": ["sudd-go/internal/vision/vision.go:86 atomicWrite (ATOMIC)"], "persona_objective": "obj#1, obj#3"},
+    {"id": "lessons_md", "path": "sudd/memory/lessons.md", "purpose": "per-change lessons, heading = outcome tier", "read_by": ["learning-engine pre-task injection"], "write_by": ["learning-engine Mode 1 via done.md Step 2a", "RewriteLessonHeading (runner.go:717)"], "persona_objective": "obj#3"},
+    {"id": "session_log_md", "path": "sudd/memory/session-log.md", "purpose": "chronological session events", "write_by": ["appendSessionLog (runner.go:809)"]},
+    {"id": "active_change_dir", "path": "sudd/changes/active/<id>/", "purpose": "in-flight change artifacts (proposal.md, specs.md, design.md, tasks.md, log.md)", "persona_objective": "obj#1, obj#3"},
+    {"id": "archive_dir", "path": "sudd/changes/archive/<id>_DONE/", "purpose": "completed changes — canonical source for SUMMARY.md review", "persona_objective": "obj#3"},
+    {"id": "dirty_dir", "path": "sudd/changes/dirty/<id>/", "purpose": "DONE_DIRTY landing (shipped-but-hygiene-imperfect) — FOLLOWUP.md required", "persona_objective": "obj#3, obj#4"},
+    {"id": "stuck_dir", "path": "sudd/changes/stuck/<id>/", "purpose": "STUCK changes — STUCK.md + STUCK_REPORT.md required", "persona_objective": "obj#4"},
+    {"id": "inbox_dir", "path": "sudd/changes/inbox/<id>/", "purpose": "ported-from-foreign proposals awaiting triage", "read_by": ["sudd triage", "sudd promote"], "persona_objective": "obj#4"},
+    {"id": "auto_reports_dir", "path": "sudd/auto-reports/<YYYY-MM-DD>/", "purpose": "morning report + per-change logs + summary.md", "persona_objective": "obj#3"},
+    {"id": "audit_artifacts", "path": "sudd/audit/", "purpose": "audit run outputs: codeintel.json, manifest.json, rubric.md, report.md, screenshots/, browser-reports/", "persona_objective": "obj#1"}
+  ],
+
+  "agent_surface": {
+    "expected_count": 35,
+    "actual_count": 35,
+    "file_path": "sudd/agents/",
+    "regression_guard": "sudd-go/internal/installer/framework_integrity_test.go (685 lines)",
+    "guard_gap": "does not cross-check live count against embedded template count",
+    "tiers": {
+      "judgment_opus": ["solution-explorer","architect","deep-think","decomposer","ux-architect","persona-validator"],
+      "analytical_sonnet": ["researcher","antigravity","qa","coder","peer-reviewer","integration-reviewer","macro-wiring-checker","ux-reviewer","codebase-explorer","alignment-reviewer","micro-persona-generator","micro-persona-validator","code-analyzer-reviewer","code-reviewer"],
+      "execution_free": ["persona-detector","persona-researcher","contract-verifier","blocker-detector","learning-engine","context-manager","monitor","task-discoverer","ux-tester","wiring-checker","code-analyzer-be","code-analyzer-fe","rubric-adversary","browser-test-auditor","ux-designer"]
+    },
+    "persona_objective": "obj#1 (working code), obj#2 (autonomy)"
+  },
+
+  "auth_flow": {
+    "pre_auth_pages": [],
+    "auth_action": "n/a",
+    "post_auth_pages": [],
+    "unauthenticated_behavior": {"expected": "n/a — no HTTP auth boundary. CLI is local-execution only.", "test": "n/a"},
+    "tier_auth_check": {
+      "description": "sudd doctor verifies each tier's CLI is authenticated (claude CLI auth, opencode auth, etc.) before `sudd auto` proceeds",
+      "file": "sudd-go/internal/doctor/*",
+      "preflight_contract": "auto refuses to start if any tier's auth probe fails"
+    }
+  },
+
+  "tasks": [
+    "Run `sudd status` and observe mode/phase/active_change printed",
+    "Run `sudd vision` and observe the enriched persona + current-path list renders without error",
+    "Run `sudd state --refresh` and observe sudd/CURRENT_STATE.md rewrites atomically",
+    "Run `sudd doctor` and observe it exits non-zero if yaml is malformed or tier auth is missing",
+    "Trigger `sudd auto --fresh` in an empty queue and observe discovery runs, proposals appear, queue drains",
+    "Kill `sudd auto` mid-save (SIGKILL) and confirm next run still parses state.json (EXPECTED TO FAIL given UC-1 non-atomic writes)",
+    "Run `sudd audit --skip-browser` and observe sudd/audit/report.md with health header",
+    "Run `sudd update <target>` against a repo and confirm a snapshot lands in ~/.sudd/snapshots/<slug>/<ts>.tar.gz BEFORE any write",
+    "Attempt `sudd update` with a template that would shrink a file >50% and confirm shrink-gate refuses"
+  ],
+
+  "verification_tasks": [
+    {"id": "V1", "type": "data_persistence", "description": "After `sudd auto` completes a change, state.json.auto_session.changes_processed contains that change id, and sudd/changes/{archive,dirty,stuck}/<id>/ exists.", "check": "jq + test -d", "derived_from": "data_flows[0]"},
+    {"id": "V2", "type": "cross_file_consistency", "description": "For every DONE archive, sudd/memory/lessons.md has a matching ### [DONE] heading; for every STUCK, heading is ### [STUCK].", "check": "grep archives vs lessons.md heading sweep", "derived_from": "data_flows[1]"},
+    {"id": "V3", "type": "invariant_crash_safety", "description": "Kill `sudd auto` mid-run; next `sudd auto` must not fail with 'parse state.json'.", "check": "SIGKILL during SaveState then re-run", "derived_from": "UC-1 — EXPECTED FAILURE given non-atomic write"},
+    {"id": "V4", "type": "invariant_fail_loud", "description": "When state.json write fails (e.g. read-only FS), `sudd auto` must abort — not stderr-warn-and-continue.", "check": "chmod -w sudd/state.json and run `sudd auto`", "derived_from": "UC-2 — EXPECTED FAILURE"},
+    {"id": "V5", "type": "manifest_reality_match", "description": "`sudd fleet --help` must either succeed (if fleet is registered) or manifest entry must be removed.", "check": "`sudd fleet` exit code vs manifest grep", "derived_from": "UC-3 — EXPECTED: fleet command not registered"},
+    {"id": "V6", "type": "zombie_sweep", "description": "No change under sudd/changes/active/ older than 24h lacks log.md.", "check": "find + test -f log.md", "derived_from": "UC-5 — EXPECTED FAILURE: handoff-validator-template-cleanup_01"},
+    {"id": "V7", "type": "agent_count_regression", "description": "sudd/agents/*.md count == embedded templateFS sudd/agents/*.md count == 35.", "check": "Go test TestTemplateCountMatchesLive", "derived_from": "UC-7 — test does not exist yet"},
+    {"id": "V8", "type": "preflight_snapshot_guarantee", "description": "After `sudd update <target>`, the newest file in ~/.sudd/snapshots/<slug>/ has mtime > update-start-time.", "check": "stat + timestamp compare", "derived_from": "vision.md safety infrastructure (v3.8.20 E)"},
+    {"id": "V9", "type": "audit_outcome_classification", "description": "`sudd audit` subprocess failure should surface classification (timeout/quota/crash), not generic 'audit subprocess: <err>'.", "check": "force timeout, force quota, force crash; inspect stderr", "derived_from": "UC-4 — EXPECTED FAILURE"},
+    {"id": "V10", "type": "archive_uniqueness", "description": "No change id appears in more than one of active/archive/dirty/stuck simultaneously (except transient zombies handled by UC-5).", "check": "ls + comm -12", "derived_from": "data_flows[0] + archive-clears-zombie-stuck-dirs_01 fix"}
+  ],
+
+  "out_of_scope_for_static_audit": [
+    "Live browser-based persona testing (requires persona-browser-agent + running URL — this repo has no HTTP surface so N/A for THIS repo, but the framework's promise of browser validation is tested in persona-browser-agent sibling)",
+    "LLM-model-cost drift validation (tier assignments verified structurally via TestLintAgentTiers_LiveRepo but actual cost behavior needs live-run telemetry)",
+    "Cross-repo pattern sync behavior (requires two repos + ~/.sudd/learning/patterns.md)",
+    "MemPalace semantic-index correctness (requires MCP server running)"
+  ]
+}

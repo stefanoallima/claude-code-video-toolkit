@@ -1,0 +1,4 @@
+claude --dangerously-skip-permissions
+
+specify init --here --ai claude --dangerously-skip-permissions --script ps
+

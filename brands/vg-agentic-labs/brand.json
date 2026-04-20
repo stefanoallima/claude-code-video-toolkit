@@ -1,0 +1,55 @@
+{
+  "name": "VG Agentic Labs",
+  "description": "AI-powered player intelligence platform for gaming studios. Cream + electric blue brand.",
+  "version": "1.0.0",
+  "website": "https://vgagenticlabs.xyz",
+
+  "colors": {
+    "primary": "#0000EE",
+    "primaryLight": "#3b82f6",
+    "primaryDark": "#00008B",
+    "accent": "#d946ef",
+    "textDark": "#ffffff",
+    "textMedium": "#94a3b8",
+    "textLight": "#64748b",
+    "bgLight": "#FBFAF4",
+    "bgAlt": "#1e293b",
+    "bgDark": "#0f172a",
+    "bgOverlay": "rgba(0, 0, 238, 0.06)",
+    "divider": "#1e293b",
+    "shadow": "rgba(0, 0, 0, 0.4)"
+  },
+
+  "fonts": {
+    "primary": "Inter, system-ui, -apple-system, sans-serif",
+    "mono": "JetBrains Mono, ui-monospace, monospace"
+  },
+
+  "spacing": {
+    "xs": 8,
+    "sm": 16,
+    "md": 24,
+    "lg": 48,
+    "xl": 80,
+    "xxl": 120
+  },
+
+  "borderRadius": {
+    "sm": 6,
+    "md": 12,
+    "lg": 20
+  },
+
+  "typography": {
+    "h1": { "size": 80, "weight": 700 },
+    "h2": { "size": 60, "weight": 700 },
+    "h3": { "size": 44, "weight": 600 },
+    "body": { "size": 28, "weight": 400 },
+    "label": { "size": 18, "weight": 500, "letterSpacing": 2 }
+  },
+
+  "assets": {
+    "logo": "assets/logo.png",
+    "logoLight": "assets/logo-light.png"
+  }
+}

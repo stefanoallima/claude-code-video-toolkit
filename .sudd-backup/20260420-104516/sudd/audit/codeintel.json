@@ -1,0 +1,238 @@
+{
+  "version": "1.0",
+  "audit_scope": {
+    "kind": "audit",
+    "surface": "cli+markdown-framework",
+    "note": "SUDD is a Go CLI + embedded markdown framework; NO HTTP backend and NO frontend. There is no fe_codeintel.json — correct absence, not a gap. All 'pages' / 'api_endpoints' arrays from the stock change-scope schema are intentionally empty. The routing surface is instead the cobra CLI command tree + the state.json / markdown file tree, captured in cli_surface and state_surface below.",
+    "missing_intel": ["fe_codeintel.json (not applicable: no frontend)"],
+    "persona_target": "sudd/personas/default.md — Stefano / Framework Owner (single enriched persona)",
+    "vision_source": "sudd/vision.md @ git 2eb9211"
+  },
+  "generated_from": "git:2eb9211c715ee50fc6300729cc23d8870eb4ac08",
+  "generated_at": "2026-04-20T00:45:00Z",
+  "confidence_overall": "HIGH",
+
+  "pages": [],
+  "api_endpoints": [],
+  "frontend_routes": [],
+  "auth": {
+    "mechanism": "n/a",
+    "note": "No HTTP auth surface. The only auth concepts are (a) CLI tool presence checks in internal/doctor/ and (b) per-tier auth checks (claude CLI auth, opencode auth) verified by `sudd doctor`."
+  },
+
+  "cli_surface": [
+    {"id": "init", "file": "sudd-go/cmd/sudd/main.go:41", "handler": "runInit", "state_writes": ["sudd.yaml", "sudd/vision.md", ".sudd-version"], "persona_linked_objective": "obj#2 (autonomous progress)", "confidence": "HIGH"},
+    {"id": "status", "file": "sudd-go/cmd/sudd/main.go:48", "handler": "runStatus", "state_writes": [], "reads": ["sudd/state.json via auto.LoadState"], "persona_linked_objective": "obj#4 (identify stuck items)", "confidence": "HIGH"},
+    {"id": "update", "file": "sudd-go/cmd/sudd/main.go:55", "handler": "runUpdate", "state_writes": [".sudd-version", "sudd/ files", "~/.sudd/snapshots/<slug>/<ts>.tar.gz"], "guards": ["self-update refusal", "shrink-gate (>50% or 0 bytes)"], "persona_linked_objective": "obj#2 (autonomous progress, fleet health)", "confidence": "HIGH"},
+    {"id": "setup", "file": "sudd-go/cmd/sudd/main.go:62", "handler": "runSetup", "state_writes": ["~/.sudd/config.yaml"], "confidence": "HIGH"},
+    {"id": "auto", "file": "sudd-go/cmd/sudd/auto.go:21", "handler": "runAutoCmd", "state_writes": ["sudd/state.json (NON-ATOMIC)", "sudd/auto-reports/...", "sudd/changes/{active,archive,stuck,dirty}", "sudd/memory/lessons.md", "sudd/vision.md ## Current Path", "sudd/CURRENT_STATE.md", "sudd/memory/session-log.md"], "guards": ["doctor preflight gate", "deferred finalize on panic/signal/budget"], "persona_linked_objective": "obj#2 (autonomous progress) + obj#1 (working code)", "confidence": "HIGH"},
+    {"id": "audit", "file": "sudd-go/cmd/sudd/audit.go:19", "handler": "runAuditCmd", "state_writes": ["sudd/audit/audit.log (truncated each run)"], "delegates_to": "auto.RunAudit subprocess", "tests": "none (no audit_test.go at CLI or internal/auto/audit.go)", "persona_linked_objective": "obj#1 (verify working code, platform-wide)", "confidence": "HIGH"},
+    {"id": "metrics", "file": "sudd-go/cmd/sudd/metrics.go", "handler": "runMetrics", "tests": "metrics_test.go", "persona_linked_objective": "obj#3 (understand what changed)", "confidence": "HIGH"},
+    {"id": "doctor", "file": "sudd-go/cmd/sudd/doctor.go", "handler": "runDoctor", "state_writes": ["~/.sudd/cache/doctor/<slug>.json"], "persona_linked_objective": "obj#2 (autonomous progress — fails loud, never silent)", "confidence": "HIGH"},
+    {"id": "diagnose", "file": "sudd-go/cmd/sudd/diagnose.go", "handler": "runDiagnose", "persona_linked_objective": "obj#4 (diagnose stuck items)", "confidence": "HIGH"},
+    {"id": "heal", "file": "sudd-go/cmd/sudd/heal.go", "handler": "runHeal", "state_writes": ["sudd/sudd.yaml, sudd/state.json, sudd/personas/default.md when degraded"], "confidence": "HIGH"},
+    {"id": "triage", "file": "sudd-go/cmd/sudd/triage.go", "handler": "runTriage", "state_writes": ["sudd/changes/inbox/<id>/ promotions"], "persona_linked_objective": "obj#4 (unblock stuck items)", "confidence": "HIGH"},
+    {"id": "promote", "file": "sudd-go/cmd/sudd/promote.go:12", "handler": "runPromote", "state_writes": ["sudd/changes/inbox → active/NNN_<id>/"], "confidence": "HIGH"},
+    {"id": "list-snapshots", "file": "sudd-go/cmd/sudd/snapshot.go:13", "handler": "runListSnapshots", "confidence": "HIGH"},
+    {"id": "restore-snapshot", "file": "sudd-go/cmd/sudd/snapshot.go:25", "handler": "runRestoreSnapshot", "state_writes": ["overwrites sudd/ from snapshot tarball"], "confidence": "HIGH"},
+    {"id": "learn", "file": "sudd-go/cmd/sudd/learn.go:15", "subcommands": ["status","sync","import","promote","mine"], "state_writes": ["~/.sudd/learning/patterns.md", "sudd/memory/patterns.md"], "confidence": "HIGH"},
+    {"id": "vision", "file": "sudd-go/cmd/sudd/vision.go:12", "subcommands": ["context"], "read_only": true, "confidence": "HIGH"},
+    {"id": "state", "file": "sudd-go/cmd/sudd/state_cli.go", "handler": "stateCmd", "tests": "state_cli_test.go", "read_only": true, "confidence": "HIGH"}
+  ],
+
+  "cli_surface_discrepancies": [
+    {
+      "id": "DRIFT-1",
+      "severity": "medium",
+      "finding": "sudd/codebase-manifest.json:92 advertises a `fleet` CLI subcommand, but sudd-go/cmd/sudd/fleet.go registers no cobra command (no init(), no rootCmd.AddCommand). Fleet behavior is available only through --all-siblings flags on status/update/metrics/diagnose.",
+      "impact": "Operators / audit agents reading the manifest and running `sudd fleet status` get 'unknown command'. Misleading; does not break any workflow.",
+      "confidence": "HIGH"
+    }
+  ],
+
+  "state_surface": {
+    "authoritative_file": "sudd/state.json",
+    "schema_file": "sudd/state.schema.json",
+    "writer": "sudd-go/internal/auto/state.go SaveState (auto/state.go:178)",
+    "atomicity": "NON-ATOMIC (os.WriteFile, no tmp+fsync+rename) — VIOLATES framework invariant",
+    "comparison": {
+      "atomic_writers_in_same_repo": [
+        "sudd-go/internal/state/write.go:78 writeAtomic (CURRENT_STATE.md)",
+        "sudd-go/internal/vision/vision.go:86 atomicWrite (vision.md)"
+      ]
+    },
+    "typed_fields": ["active_change", "phase", "auto_session.{started_at,stop_reason,changes_processed[],queue_remaining[]}"],
+    "raw_map_fields": ["autonomy", "vision_last_processed_at", "discovery.{last_run_at, changes_since_last, last_git_sha}", "audit.{changes_since_last_audit, last_audit_at, last_audit_health, last_audit_score}", "stats.{tasks_completed, tasks_stuck, tasks_blocked, total_retries, total_done_dirty, stats_seeded}", "retry_count, tests_passed, gate_passed, personas_validated, architecture_reviewed, design_gate_passed, gate_score, design_gate_score"],
+    "persona_linked_objective": "obj#2 (autonomous progress) + obj#3 (understand what happened) — state.json is the primary source of truth for 'what happened'"
+  },
+
+  "agent_surface": {
+    "manifest_count": 35,
+    "live_count": 35,
+    "guardrail_source": "framework_integrity_test.go (685 lines)",
+    "guardrail_gap": "live agent count asserted != 0, but NOT compared against embedded template count (sudd-go/cmd/sudd/templates/sudd/agents/). The v3.8.x self-wipe pattern is still reachable if templates drift below live.",
+    "confidence": "HIGH"
+  },
+
+  "data_flows": [
+    {
+      "trigger": "change outcome resolved (DONE / DONE_DIRTY / STUCK)",
+      "writes_to": "sudd/changes/{archive,dirty,stuck}/<id>/",
+      "then_readable_from": ["sudd/state.json.auto_session.changes_processed", "sudd/CURRENT_STATE.md", "sudd/auto-reports/<date>/<id>.log"],
+      "verification": "After `sudd auto` completes, every queued change must appear exactly once in one of archive/dirty/stuck; state.json.auto_session.changes_processed length must equal queue length minus skipped.",
+      "persona_objective": "obj#1 + obj#3 (verify working, understand what changed)"
+    },
+    {
+      "trigger": "DONE outcome archived",
+      "writes_to": "sudd/memory/lessons.md (heading with ### [DONE]) + sudd/vision.md ## Current Path",
+      "then_readable_from": ["sudd-go/internal/auto/learning.go RewriteLessonHeading", "sudd vision context"],
+      "verification": "Headings in lessons.md match the archival outcome tier; no STUCK change carries a ### [DONE] heading.",
+      "known_defect": "Multiple active proposals (discovered_audit_lesson-heading-matches-outcome_01) flagged stale heading mismatches — fixed per commit 7678260 but regression guard limited."
+    },
+    {
+      "trigger": "`sudd audit` subcommand",
+      "writes_to": "sudd/audit/audit.log (truncated), sudd/audit/{codeintel.json, manifest.json, rubric.md, report.md, screenshots/, browser-reports/}",
+      "then_readable_from": ["sudd/audit/report.md", "sudd/state.json audit.last_audit_health/score"],
+      "verification": "After audit, report.md exists with EXCELLENT|GOOD|NEEDS_WORK|CRITICAL header; state.json audit.last_audit_at is set to now; gap proposals land in sudd/changes/active/.",
+      "risk": "RunAudit swallows subprocess exit-code classification (timeout vs quota vs crash) — operator cannot triage without reading audit.log tail."
+    },
+    {
+      "trigger": "every `sudd update`",
+      "writes_to": "~/.sudd/snapshots/<slug>/<ts>.tar.gz (BEFORE any write)",
+      "then_readable_from": ["sudd list-snapshots", "sudd restore-snapshot"],
+      "verification": "Every update produces a snapshot AND shrink-gate refuses writes that drop a file >50% or to 0 bytes.",
+      "persona_objective": "obj#2 (recovery — fleet-wide outage must be one-command recoverable)"
+    }
+  ],
+
+  "unified_concerns": [
+    {
+      "id": "UC-1",
+      "severity": "critical",
+      "title": "state.json written non-atomically — single most load-bearing file violates framework's own atomic-write invariant",
+      "evidence": "sudd-go/internal/auto/state.go:178 uses os.WriteFile. Compare atomic writers at sudd-go/internal/state/write.go:78 (writeAtomic) and sudd-go/internal/vision/vision.go:86 (atomicWrite).",
+      "persona_impact": "obj#2 (autonomous progress — silent-fails on crash), obj#3 (understand what changed — lost stats), obj#4 (stuck diagnosis — corrupt state.json produces 'parse state.json' fatal at next LoadState, auto.go:177).",
+      "vision_promise_violated": "vision.md line ~203: 'Fail loud at session start, never silently mid-run.' and line ~277: 'Preflight blocks on any failure — silent success is never acceptable.'",
+      "remediation": "Replace os.WriteFile with writeAtomic pattern (copy from internal/state/write.go:78).",
+      "confidence": "HIGH",
+      "corroborates_be_finding": "be_codeintel.json C1 (confirmed)"
+    },
+    {
+      "id": "UC-2",
+      "severity": "high",
+      "title": "SaveState failures in `sudd auto` swallow errors with only stderr warnings",
+      "evidence": "sudd-go/cmd/sudd/auto.go lines 186, 282, 377, 394, 410, 423, 464, 545, 603, 615 — all use `if saveErr != nil { fmt.Fprintf(os.Stderr, \"Warning: ...\") }` with no abort.",
+      "persona_impact": "obj#2 violated directly — an overnight auto run with disk full / read-only FS / perms regression produces stderr warnings that nobody reads while the loop processes changes whose state can never be persisted. Stefano returns to a partial/corrupt state.json and no visible failure indicator.",
+      "vision_promise_violated": "vision.md ~203: 'Fail loud at session start, never silently mid-run.' + user-memory note: 'Preflight blocks by default, never silent-fails.'",
+      "remediation": "Abort the loop after N consecutive SaveState failures, or escalate to STUCK and write a FAILURE.md. At minimum, bump a `save_failures` counter in state.json itself (which, of course, requires atomic writes first).",
+      "confidence": "HIGH",
+      "corroborates_be_finding": "be_codeintel.json C2 (confirmed)"
+    },
+    {
+      "id": "UC-3",
+      "severity": "medium",
+      "title": "Manifest drift: `fleet` CLI command advertised but not registered",
+      "evidence": "sudd/codebase-manifest.json:92 lists fleet; sudd-go/cmd/sudd/fleet.go contains only helpers (statusAllSiblingsRun, updateAllSiblingsRun, readSuddVersion); no cobra registration.",
+      "persona_impact": "obj#3 (understand what the system does) — documentation lies to operator.",
+      "vision_promise_violated": "vision.md 'Fleet management (v3.8.21)' promises `sudd status --all-siblings` and friends — the flag form is correct; the manifest's freestanding `fleet` entry is not.",
+      "remediation": "Either (a) register a real `fleet` cobra command that dispatches to the helpers, or (b) delete the manifest entry and update codebase-explorer regeneration rules to not re-emit it.",
+      "confidence": "HIGH",
+      "corroborates_be_finding": "be_codeintel.json C3 (confirmed)"
+    },
+    {
+      "id": "UC-4",
+      "severity": "medium",
+      "title": "`sudd audit` has no Go-level tests and no subprocess-outcome classification",
+      "evidence": "sudd-go/cmd/sudd/audit.go has no *_test.go; sudd-go/internal/auto/audit.go:57-66 wraps any subprocess error uniformly as `audit subprocess: %w`.",
+      "persona_impact": "obj#1 (verify working code, platform-wide) — audit is the surface that answers 'is the fleet healthy?' for Stefano, but has no unit coverage and no distinction between timeout / quota-exhaustion / LLM-crash / bad-prompt failures. CLI caller at audit.go:97 just os.Exits(1).",
+      "vision_promise_violated": "Audit is explicitly positioned in vision.md (v3.4) as fleet-wide persona validation — a surface with zero tests contradicts the safety-infrastructure ethos.",
+      "remediation": "Add (a) audit_test.go smoke test with a stub subprocess, (b) exit-code → classification map (timeout vs quota vs generic), (c) surface the classification to operator stderr.",
+      "confidence": "HIGH"
+    },
+    {
+      "id": "UC-5",
+      "severity": "medium",
+      "title": "Zombie active change — skeleton persists across sessions without advancing",
+      "evidence": "sudd/changes/active/discovered_audit_handoff-validator-template-cleanup_01/ — has proposal.md (Apr 19 19:52), design.md (Apr 19 21:40), tasks.md, personas/ but NO log.md, NO specs.md, NO SUMMARY.md. Dates 2026-04-19 19:52 unchanged as of 2026-04-20 — not moved, not progressed, not archived.",
+      "persona_impact": "obj#2 (autonomous progress) + obj#4 (identify stuck items) — a change that is neither advancing nor marked STUCK is invisible to the retry-escalation ladder.",
+      "vision_promise_violated": "Ralph Loop contract: every active change must resolve to DONE / DONE_DIRTY / STUCK. A skeleton without log.md that persists >24h is neither.",
+      "remediation": "Either (a) populate specs.md and resume via /sudd-apply, (b) explicitly STUCK-archive with a reason, or (c) auto-sweep `active/` for entries lacking log.md older than N hours in runAutoCmd.",
+      "confidence": "HIGH"
+    },
+    {
+      "id": "UC-6",
+      "severity": "medium",
+      "title": "Dead/partial: RollupSessionStats orphaned with stale docstring",
+      "evidence": "sudd-go/internal/auto/state.go:467-514 — exported, comments say 'Called once at session end', but runAutoCmd (auto.go:500-507) documents that rollup is no longer done there because IncrementChangeStats bumps inline.",
+      "persona_impact": "obj#3 (understand what changed) indirectly — risk is future maintainer re-wiring the rollup and reintroducing the mid-session-crash stat-loss regression that inline stats were designed to fix.",
+      "remediation": "Either delete RollupSessionStats OR update docstring + mark //lint:ignore + add regression test asserting it is never called.",
+      "confidence": "MEDIUM",
+      "corroborates_be_finding": "be_codeintel.json C5 (confirmed)"
+    },
+    {
+      "id": "UC-7",
+      "severity": "low",
+      "title": "Framework integrity test does not cross-check live vs embedded template agent count",
+      "evidence": "sudd-go/internal/installer/framework_integrity_test.go asserts live count != 0 but never compares fs.WalkDir of live sudd/agents/ to templateFS sudd/agents/.",
+      "persona_impact": "obj#2 — exactly the v3.8.x self-wipe scenario (template shrinks below live) still leaks past the guardrail.",
+      "remediation": "Add TestTemplateCountMatchesLive.",
+      "confidence": "HIGH"
+    },
+    {
+      "id": "UC-8",
+      "severity": "low",
+      "title": "Dead conditional in RunDiscovery (identical branches for opencode/claude)",
+      "evidence": "sudd-go/internal/auto/discovery.go:66-70.",
+      "remediation": "Delete.",
+      "confidence": "HIGH"
+    },
+    {
+      "id": "UC-9",
+      "severity": "low",
+      "title": "Dead `_ = i` statement in MigrateVisionMD",
+      "evidence": "sudd-go/internal/vision/vision.go:289.",
+      "remediation": "Delete.",
+      "confidence": "HIGH"
+    }
+  ],
+
+  "cross_validation": {
+    "mismatches_found": 0,
+    "mismatches": [],
+    "all_fe_calls_matched": true,
+    "note": "Not applicable — no FE surface. Cross-validation slot retained for schema conformance; score inferred from manifest/reality drift instead (see cli_surface_discrepancies and unified_concerns)."
+  },
+
+  "dead_or_partial_features": [
+    {"id": "DF-1", "feature": "RollupSessionStats (auto/state.go)", "status": "dead-but-exported", "ref": "UC-6"},
+    {"id": "DF-2", "feature": "fleet cobra command", "status": "advertised-never-registered", "ref": "UC-3"},
+    {"id": "DF-3", "feature": "per-CLI discovery prompt divergence", "status": "dead-conditional", "ref": "UC-8"},
+    {"id": "DF-4", "feature": "MigrateVisionMD `_ = i`", "status": "dead-statement", "ref": "UC-9"}
+  ],
+
+  "zombie_active_changes": [
+    {
+      "id": "discovered_audit_handoff-validator-template-cleanup_01",
+      "path": "sudd/changes/active/discovered_audit_handoff-validator-template-cleanup_01/",
+      "age_hours_since_last_artifact": "~27 (oldest file Apr 19 19:52, newest Apr 19 21:40, now 2026-04-20)",
+      "missing": ["log.md", "specs.md", "SUMMARY.md"],
+      "present": ["proposal.md", "design.md", "tasks.md", "personas/"],
+      "ref": "UC-5"
+    }
+  ],
+
+  "vision_promise_check": {
+    "claimed_35_agents": {"live": 35, "manifest": 35, "vision_text_line_112": "v3.8.x, 35 agents", "status": "MATCH"},
+    "claimed_preflight_fail_loud": {"status": "CONTRADICTED_BY_CODE", "evidence": "auto.go stderr-warning-on-SaveState pattern; auto/state.go non-atomic write", "ref": "UC-1, UC-2"},
+    "claimed_snapshots_before_every_update": {"status": "CONFIRMED", "ref": "internal/snapshot + sudd-go/cmd/sudd/snapshot.go"},
+    "claimed_shrink_gate": {"status": "CONFIRMED", "ref": "installer.UpdateOptions.AllowShrink"},
+    "claimed_framework_integrity_tests": {"status": "PARTIALLY_CONFIRMED", "gap": "no live-vs-template count comparison", "ref": "UC-7"},
+    "claimed_fleet_management": {"status": "DRIFT", "ref": "UC-3"}
+  },
+
+  "summary": {
+    "headline": "The framework is internally consistent at the 35-agent and safety-infra level, but three issues materially violate its own stated invariants: (C1) state.json non-atomic writes, (C2) SaveState stderr-warn-and-continue pattern, and (C5) a zombie active change with no log.md that has not advanced in 27+ hours. Supporting gaps: fleet CLI advertised but not registered, audit has zero Go tests, and orphaned RollupSessionStats with stale docstring.",
+    "highest_severity": "UC-1 (CRITICAL): state.json non-atomic write in sudd-go/internal/auto/state.go:178. Any crash mid-SaveState produces unparseable JSON; LoadState on next `sudd auto` returns fmt.Errorf(\"parse state.json: %w\") and the CLI os.Exit(1)s — effectively bricks the session until manual recovery.",
+    "confidence_overall": "HIGH"
+  }
+}

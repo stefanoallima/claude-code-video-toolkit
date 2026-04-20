@@ -4,7 +4,7 @@ description: "Archive completed or stuck change. Use when implementation is comp
 license: MIT
 metadata:
   author: sudd
-  version: "3.8.10"
+  version: "3.8.25"
 ---
 
 Archive the change. Update memory. Clean up.
@@ -45,10 +45,17 @@ Outcome:
 
 ---
 
-## STEP 2a: EXTRACT LESSONS
+## STEP 2a: EXTRACT LESSONS (MANDATORY — DO NOT SKIP)
+
+This step runs EVERY time. Silent-skipping it is the bug this assertion
+exists to prevent — five 2026-04-19 DONEs shipped without lessons because
+Step 2a used to be prose-only. It is no longer.
 
 ```
 Dispatch(agent=learning-engine, mode=1):
+
+change-id: {id}               ← pass the active change-id explicitly so
+                                 the lesson heading includes it verbatim
 
 Read: sudd/changes/active/{id}/log.md
 Read: All feedback from retries
@@ -61,11 +68,47 @@ Extract:
 
 Write: sudd/memory/lessons.md
   Use the SUCCESS / FAILURE / STUCK template from learning-engine.md Mode 1.
+  The heading line MUST include the literal `{change-id}` string so the
+  pre-archive assertion below can grep for it.
   Tags MUST be specific (e.g., "go-testing", "cross-file-consistency") not generic ("code", "testing").
 ```
 
-Verify: the new lesson entry exists at the bottom of `memory/lessons.md`.
-If NOT present: STOP. Re-run this step. Lessons are required before archiving.
+### Pre-Archive Assertion (MANDATORY — DO NOT SKIP)
+
+Lesson recording is enforced by the Go binary after the subprocess exits
+via `auto.RunPreArchiveChecks` (see `sudd-go/internal/auto/checks.go`),
+which invokes `auto.LessonRecorded` from `learning.go` as a registered
+check. The bash assertion below runs as non-authoritative fast-feedback
+inside the subprocess — the Go binary is canonical; skipping the bash
+block is harmless (the Go check still runs post-exit and downgrades a
+DONE outcome to STUCK on failure). Skipping the Go check is impossible
+unless `SUDD_PRE_ARCHIVE_CHECKS=off` is set in the environment.
+
+AFTER dispatching learning-engine and BEFORE proceeding to Step 2b, the
+orchestrator MUST run this shell assertion via the Bash tool:
+
+```bash
+count=$(grep -c "{change-id}" sudd/memory/lessons.md 2>/dev/null || echo 0)
+if [ "$count" -lt 1 ]; then
+  echo "✗ Learning pipeline failure: no lesson entry written for {change-id}"
+  echo "   Re-dispatching learning-engine Mode 1 (attempt $attempt of 2)..."
+  # loop: re-dispatch Step 2a, re-run grep. Max 2 retries.
+else
+  echo "✓ Lesson recorded for {change-id} (count=$count)"
+fi
+```
+
+If the count is still `0` after 2 re-dispatches, STOP the archive:
+- Do NOT run `mv sudd/changes/active/{id} sudd/changes/archive/{id}_DONE`.
+- Instead, set state.json to `retry_count >= 8` and archive as STUCK with
+  `STUCK.md` reason = `learning-pipeline-failure`.
+- Flag this in log.md for human investigation — learning-engine produced
+  no output and the problem is not recoverable by retry alone.
+
+The canonical Go form of this assertion is
+`auto.LessonRecorded(projectDir, changeID)` in
+`sudd-go/internal/auto/learning.go`. The Go test enforces the rule
+cannot be quietly removed.
 
 ---
 
@@ -138,34 +181,154 @@ If Step 2b promoted new patterns:
 
 ---
 
+## STEP 2d: ENFORCE TASKS.MD CHECKBOX CLOSURE (MANDATORY — DO NOT SKIP)
+
+Tasks-closure is enforced by the Go binary via `auto.RunPreArchiveChecks`
+→ `auto.TasksAllChecked` in `sudd-go/internal/auto/tasks.go` — registered
+alongside `LessonRecorded` and `SummaryHasCanonicalHeadings`. The bash
+`grep` block below remains as fast-feedback inside the subprocess; the
+Go binary is canonical.
+
+Only DONE archives are gated here. STUCK goes through regardless — a
+partial-completion STUCK archive is expected to carry unchecked boxes.
+
+```bash
+if [ "{outcome}" = "DONE" ]; then
+  unchecked=$(grep -c '^- \[ \]' sudd/changes/active/{id}/tasks.md 2>/dev/null || echo 0)
+  if [ "$unchecked" -gt 0 ]; then
+    echo "✗ Tasks-closure failure: $unchecked unchecked box(es) in tasks.md"
+    echo "   Unchecked lines:"
+    grep -n '^- \[ \]' sudd/changes/active/{id}/tasks.md
+    echo "   The orchestrator must either:"
+    echo "     (a) Flip these boxes to [x] via the Edit tool (work actually done), OR"
+    echo "     (b) Archive as STUCK (work actually incomplete)."
+    echo "   Do NOT run 'mv ... archive/{id}_DONE' while unchecked boxes remain."
+    exit 1
+  fi
+  echo "✓ Tasks.md closed: 0 unchecked boxes"
+fi
+```
+
+The canonical Go form of this assertion is
+`auto.TasksAllChecked(projectDir, changeID)` in
+`sudd-go/internal/auto/tasks.go`. The Go test
+`TestDoneMdContainsTasksAssertion` enforces that this Step 2d block
+cannot be silently removed — any future edit that drops the `STEP 2d`
+marker or the `- [ ]` grep pattern fails CI.
+
+**Why this exists**: `brown_v3816-cross-repo-hygiene_01_DONE/tasks.md`
+shipped with 22 unchecked boxes despite DONE gate score 98/100. The
+persona's success criterion "I can see exactly what happened" fails
+when the DONE archive contradicts itself. Step 2d is the mechanical
+gate that makes that class of regression impossible.
+
+---
+
+## STEP 2e: ENFORCE SUMMARY.md CANONICAL HEADINGS (MANDATORY — DO NOT SKIP)
+
+SUMMARY.md canonical-heading enforcement is delivered by the Go binary
+via `auto.RunPreArchiveChecks` → `auto.SummaryHasCanonicalHeadings` in
+`sudd-go/internal/auto/summary.go`. The check runs against
+`active/{id}/SUMMARY.md` BEFORE the `mv` (the pre-archive registry sees
+the file in active first, then falls back to `archive/{id}_DONE/`). The
+bash block below is non-authoritative fast-feedback.
+
+Only DONE archives are gated here. STUCK archives use STUCK.md, which has
+its own schema.
+
+BEFORE running `mv sudd/changes/active/{id} sudd/changes/archive/{id}_DONE`,
+the orchestrator MUST emit SUMMARY.md using the canonical template (see
+Step 3 "### If DONE") and verify it contains all four canonical `##`
+headings. The file is still in `active/{id}/` at this point — the
+assertion runs pre-move, against the just-emitted file.
+
+```bash
+summary=sudd/changes/active/{id}/SUMMARY.md
+if [ ! -f "$summary" ]; then
+  echo "✗ SUMMARY.md not yet written; emit it from the Step 3 template first"
+  exit 1
+fi
+missing=""
+grep -q '^## What Changed' "$summary" || missing="$missing ## What Changed"
+grep -q '^## Why' "$summary"          || missing="$missing ## Why"
+grep -qE '^## Validation( Results)?' "$summary" || missing="$missing ## Validation"
+grep -qE '^## Lessons( Learned)?' "$summary"    || missing="$missing ## Lessons"
+if [ -n "$missing" ]; then
+  echo "✗ SUMMARY.md missing canonical headings:$missing"
+  echo "   Re-emit from the canonical template in Step 3."
+  exit 1
+fi
+echo "✓ SUMMARY.md has all canonical headings"
+```
+
+If the assertion fails: re-emit SUMMARY.md from the canonical template.
+Do NOT silently `mv` an archive whose SUMMARY.md is non-canonical.
+
+The canonical Go form of this assertion is
+`auto.SummaryHasCanonicalHeadings(body)` in
+`sudd-go/internal/auto/summary.go`. The Go test
+`TestDoneMdContainsSummaryAssertion` enforces that this Step 2e block
+cannot be silently removed — any future edit that drops the `STEP 2e`
+marker or the canonical heading literals fails CI. The companion live-repo
+test `TestAllArchivesHaveCanonicalHeadings` enforces that every
+`archive/*_DONE/SUMMARY.md` on the current repo is canonical at all times.
+
+**Why this exists**: Audit 2026-04-19 found 0 of 19 archived DONEs matched
+the rubric's canonical headings — every change invented its own structure
+(`## What shipped / Files touched / Verification` vs `## Summary / Consumers
+Validated / Files Changed / Lessons Learned`, etc.). Content was fine; the
+shape drifted, which breaks any grep-based downstream consumer
+(stakeholder dashboard, cross-repo analyzer, audit tooling). Step 2e is
+the mechanical gate that makes that class of drift impossible.
+
+---
+
 ## STEP 3: ARCHIVE
 
 ### If DONE
-```bash
-mv sudd/changes/active/{id} sudd/changes/archive/{id}_DONE
-```
 
-Create summary: `sudd/changes/archive/{id}_DONE/SUMMARY.md`
+**Emit SUMMARY.md FIRST (into `active/{id}/`, pre-move), then run Step 2e
+assertion, then `mv` to archive.**
+
+Create `sudd/changes/active/{id}/SUMMARY.md` using the canonical template
+below. The four `##` headings (What Changed, Why, Validation, Lessons) are
+mandatory — Step 2e blocks the archive if any are missing. Supplementary
+sections (`## Files Changed`, `## Cost Summary`, etc.) remain permitted.
+
 ```markdown
 # Archive: {change-id}
 
 ## Outcome: DONE
 
-## Summary
-{1-2 sentences}
+## What Changed
 
-## Consumers Validated
-- Consumer 1: score
-- Consumer 2: score
+{1-2 sentences: what actually shipped. Shape-level, not exhaustive file list.}
+
+## Why
+
+{Motivation from proposal.md. Why this change existed. Who it serves.}
+
+## Validation
+
+{How this was verified. Tests run, consumers/personas validated with
+scores, browser reports if UI. Evidence of gate PASS.}
+
+## Lessons
+
+{Key lessons — mirrors the lesson recorded in memory/lessons.md for this
+change. 1-3 bullet points.}
 
 ## Files Changed
-- path/to/file.py — description
 
-## Lessons Learned
-- Lesson 1
-- Lesson 2
+- `path/to/file.ext` — description
 
-## Completed: {timestamp}
+## Completed: {YYYY-MM-DD}
+```
+
+After emitting, run the Step 2e grep assertion. If it passes, proceed:
+
+```bash
+mv sudd/changes/active/{id} sudd/changes/archive/{id}_DONE
 ```
 
 ### If STUCK

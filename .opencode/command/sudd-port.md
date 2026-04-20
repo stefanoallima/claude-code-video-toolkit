@@ -786,8 +786,8 @@ Upgrades existing SUDD installation from older version to current.
    - persona-detector.md, persona-researcher.md, decomposer.md
    - coder.md, contract-verifier.md, persona-validator.md
 
-4. **Remove deprecated** (1):
-   - handoff-validator.md
+4. **Remove deprecated** (0):
+   - (none — v3.0 retirements are already reflected in the shipped sudd.yaml and commands; integration-reviewer subsumes the retired boundary-validation agent)
 
 5. **Copy updated commands**:
    - apply.md, plan.md, gate.md, test.md (micro)
@@ -795,7 +795,7 @@ Upgrades existing SUDD installation from older version to current.
 
 6. **Update standards.md**: Add task-level scoring section
 
-7. **Update sudd.yaml**: Add new agents, remove handoff-validator
+7. **Update sudd.yaml**: Add new agents. Remove any lingering references to retired v3.0 validation agents in foreign frameworks (the shipped sudd.yaml already reflects these retirements — integration-reviewer subsumes the boundary-validation role).
 
 8. **Update state.json**: Add `sudd_version: "3.0"`
 

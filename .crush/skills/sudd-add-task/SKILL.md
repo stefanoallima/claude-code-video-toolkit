@@ -4,7 +4,7 @@ description: "Add a new change proposal to the backlog."
 license: MIT
 metadata:
   author: sudd
-  version: "3.8.10"
+  version: "3.8.25"
 ---
 
 Add a new change proposal to the SUDD backlog.
